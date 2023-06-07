@@ -11,7 +11,7 @@ License: 3-Clause-BSD-LBNL
 
 import numpy as np
 from scipy import constants
-from .utilities import get_data
+from .utilities import get_data, chunk_to_slice
 
 
 def read_species_data(series, iteration, species_name, component_name,
@@ -98,4 +98,77 @@ def read_species_data(series, iteration, species_name, component_name,
 
 
     # Return the data
+    return data
+
+def tuple_to_slice(geos_results):
+    # (result_obj.start, result_obj.end, None)
+    return tuple(map(lambda s: slice(s[0], s[1], s[2]), geos_results))
+
+
+def gc_get_data(series, component, chunk_slices, output_type=None):
+    raw_data_list = list()
+    for chunk_slice in chunk_slices:
+        x = component[chunk_slice]
+        series.flush()
+        raw_data_list.append(x)
+    data = np.concatenate(raw_data_list)
+
+    if (output_type is not None) and (data.dtype != output_type):
+        data = data.astype( output_type )
+    return data
+
+
+def gc_index_read_species_data(series, iteration, species_name, component_name,
+                      extensions, geos_results):
+    it = series.iterations[iteration]
+
+    # Translate the record component to the openPMD format
+    dict_record_comp = {'x': ['position', 'x'],
+                        'y': ['position', 'y'],
+                        'z': ['position', 'z'],
+                        'ux': ['momentum', 'x'],
+                        'uy': ['momentum', 'y'],
+                        'uz': ['momentum', 'z'],
+                        'w': ['weighting', None]}
+
+    if component_name in dict_record_comp:
+        ompd_record_name, ompd_record_comp_name = \
+            dict_record_comp[component_name]
+    elif component_name.find('/') != -1:
+        ompd_record_name, ompd_record_comp_name = \
+            component_name.split('/')
+    else:
+        ompd_record_name = component_name
+        ompd_record_comp_name = None
+
+    # Extract the right dataset
+    species = it.particles[species_name]
+    record = species[ompd_record_name]
+    if record.scalar:
+        component = next(record.items())[1]
+    else:
+        component = record[ompd_record_comp_name]
+
+    if ompd_record_name == 'id':
+        output_type = np.uint64
+    else:
+        output_type = np.float64
+
+    chunk_slices = tuple_to_slice(geos_results)
+
+    data = gc_get_data(series, component, chunk_slices, output_type)
+    # - Return positions, with an offset
+    if component_name in ['x', 'y', 'z']:
+        offset = gc_get_data(series, species['positionOffset'][component_name], chunk_slices)
+        if np.all(offset != 0):
+            data += offset
+    # - Return momentum in normalized units
+    elif component_name in ['ux', 'uy', 'uz' ]:
+        mass_component = next(species['mass'].items())[1]
+        m = gc_get_data(series, mass_component, chunk_slices)
+        # Normalize only if the particle mass is non-zero
+        if np.all( m != 0 ):
+            norm_factor = 1. / (m * constants.c)
+            data *= norm_factor
+
     return data

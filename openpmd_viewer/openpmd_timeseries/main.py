@@ -16,6 +16,9 @@ from .plotter import Plotter
 from .particle_tracker import ParticleTracker
 from .data_reader import DataReader, available_backends
 from .interactive import InteractiveViewer
+from scipy import constants
+
+import geosindex
 
 
 # Define a custom Exception
@@ -34,7 +37,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
     - slider
     """
 
-    def __init__(self, path_to_dir, check_all_files=True, backend=None):
+    def __init__(self, path_to_dir, check_all_files=True, backend=None, geos_index=False, rocksdb_path=None, key_generation_function=None):
         """
         Initialize an openPMD time series
 
@@ -56,6 +59,12 @@ class OpenPMDTimeSeries(InteractiveViewer):
             Backend to be used for data reading. Can be `openpmd-api`
             or `h5py`. If not provided will use `openpmd-api` if available
             and `h5py` otherwise.
+
+        to build gc_geos_index, bpFileName should be like "/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/openpmd.bp"
+            geosindex::BuildGEOSIndex buildGEOSIndex("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/openpmd.bp");
+            buildGEOSIndex.buildFirstSTRtree3d();
+        the output database path by default is: std::filesystem::path(bpFileName).parent_path() + /rocksdb
+            e.g. /data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/rocksdb
         """
         # Check backend
         if backend is None:
@@ -65,6 +74,14 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     "The available backends are: {1}"
                     .format(backend, available_backends) )
         self.backend = backend
+        self.geos_index = geos_index
+        if self.geos_index:
+            self.query_geos_index = geosindex.QueryGEOSINDEX(rocksdb_path)
+            if key_generation_function:
+                self.key_generation_function = key_generation_function
+            else:
+                self.key_generation_function = lambda iteration, species, type: f"/data/{iteration}/particles/{species}/{type}/"
+            pass
 
         # Initialize data reader
         self.data_reader = DataReader(backend)
@@ -121,6 +138,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
         # - Initialize a plotter object, which holds information about the time
         self.plotter = Plotter(self.t, self.iterations)
+
+    def result_to_tuple(self, result_obj):
+        return result_obj.start, result_obj.end, None
 
     def get_particle(self, var_list=None, species=None, t=None, iteration=None,
             select=None, plot=False, nbins=150,
@@ -270,17 +290,101 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
         # Extract the list of particle quantities
         data_list = []
-        for quantity in var_list:
-            data_list.append( self.data_reader.read_species_data(
-                iteration, species, quantity, self.extensions))
-        # Apply selection if needed
-        if isinstance( select, dict ):
-            data_list = apply_selection( iteration, self.data_reader,
-                data_list, select, species, self.extensions)
-        elif isinstance( select, ParticleTracker ):
-            data_list = select.extract_tracked_particles( iteration,
-                self.data_reader, data_list, species, self.extensions )
+        if not self.geos_index or not select:
+            for quantity in var_list:
+                print("using {} backend to read data".format(self.backend))
+                data_list.append( self.data_reader.read_species_data(
+                    iteration, species, quantity, self.extensions))
+            # Apply selection if needed
+            if isinstance( select, dict ):
+                data_list = apply_selection( iteration, self.data_reader,
+                    data_list, select, species, self.extensions)
+            elif isinstance( select, ParticleTracker ):
+                data_list = select.extract_tracked_particles( iteration,
+                    self.data_reader, data_list, species, self.extensions )
+        else:
+            # 1. [multiple columns] use geos_index to coarse selection return [a list of [key/block, start, count]]
+            if isinstance( select, dict ):
+                dict_record_comp = {'x': ['position', 'x'],
+                                    'y': ['position', 'y'],
+                                    'z': ['position', 'z'],
+                                    'ux': ['momentum', 'x'],
+                                    'uy': ['momentum', 'y'],
+                                    'uz': ['momentum', 'z'],
+                                    'w': ['weighting', None]}
+                select_map = dict()
+                mass = 9.1093829099999999e-31
+                momentum_constant = 1. / (mass * constants.c)
+                for quantity in select.keys():
+                    if dict_record_comp[quantity][0] not in select_map.keys():
+                        select_map[dict_record_comp[quantity][0]] = dict()
+                        select_map[dict_record_comp[quantity][0]]["minx"] = -np.inf
+                        select_map[dict_record_comp[quantity][0]]["maxx"] = np.inf
+                        select_map[dict_record_comp[quantity][0]]["miny"] = -np.inf
+                        select_map[dict_record_comp[quantity][0]]["maxy"] = np.inf
+                        select_map[dict_record_comp[quantity][0]]["minz"] = -np.inf
+                        select_map[dict_record_comp[quantity][0]]["maxz"] = np.inf
 
+                    select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] = select[quantity][0]
+                    select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] = select[quantity][1]
+                    if dict_record_comp[quantity][0] == "momentum":
+                        select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] /= momentum_constant
+                        select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] /= momentum_constant
+
+                query_result = list()
+                for i, select_type in enumerate(select_map.keys()):
+                    key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+
+                    # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
+                    result = self.query_geos_index.queryByXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])    
+                    query_result.append(result)
+
+                # mix query_result if select_map == 2
+                if len(select_map.keys()) == 2:
+                    # todo try to optimize later
+                    set1 = set(map(self.result_to_tuple, query_result[0]))
+                    set2 = set(map(self.result_to_tuple, query_result[1]))
+
+                    query_result[0] = list(set1.intersection(set2))
+                else:
+                    query_result[0] = list(map(self.result_to_tuple, query_result[0]))
+
+                if len(query_result[0]) == 0:
+                    return list(), list()
+
+                # 2. [multiple columns] read data [slice level]
+                # type 1: target_select_data, get_particle( ['z', 'uz']
+                # type 2: the data in select, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02]}
+                data_map = dict()
+                data_size = None
+                for quantity in set(var_list + list(select.keys())):
+                    #todo optimize read data
+                    data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
+                    data_size = len(data_map[quantity])
+
+                select_array = np.ones(data_size, dtype='bool')
+                for quantity in select.keys():
+                    # Check lower bound
+                    if select[quantity][0] is not None:
+                        select_array = np.logical_and(
+                            select_array,
+                            data_map[quantity] > select[quantity][0])
+                    # Check upper bound
+                    if select[quantity][1] is not None:
+                        select_array = np.logical_and(
+                            select_array,
+                            data_map[quantity] < select[quantity][1])
+                # Use select_array to reduce each quantity
+                data_list = list()
+                for key in var_list:
+                    if len(data_map[key]) > 1:  # Do not apply selection on scalar records
+                        data_list.append(data_map[key][select_array])
+                print()
+
+            else:
+                # todo particle tracing
+                pass
+        print()
         # Plotting
         if plot and len(var_list) in [1, 2]:
 

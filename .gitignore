@@ -8,3 +8,4 @@ openpmd_viewer.egg-info/
 .eggs/
 .vs/
 __pycache__
+tutorials/example-2d

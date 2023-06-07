@@ -115,6 +115,10 @@ def apply_selection(iteration, data_reader, data_list,
     return(data_list)
 
 
+def apply_selection_gc(iteration, data_reader, data_list, select, species, extensions):
+    pass
+
+
 def try_array( L ):
     """
     Attempt to convert L to a single array.
