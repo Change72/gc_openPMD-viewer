@@ -14,15 +14,15 @@ import os
 # download_if_absent( 'example-2d' )
 
 
-# import geosindex
+import geosindex
 # built_object = geosindex.BuildGEOSIndex(
 #     "/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/openpmd.bp",
 #     ["position", "momentum"],
-#     "",  # Provide an empty string to omit the dbSavePath argument
+#     "/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/rocksdb_small_bf",  # rocksdb save path, by defaults is {bpFilePath}/rocksdb. In this case, e.g. "/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/rocksdb"
 #     "electrons",
 #     10,
-#     10,
-#     10000
+#     5,
+#     400
 # )
 # built_object.buildFirstSTRtree3d()
 

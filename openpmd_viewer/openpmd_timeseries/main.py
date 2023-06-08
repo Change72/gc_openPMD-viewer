@@ -292,7 +292,6 @@ class OpenPMDTimeSeries(InteractiveViewer):
         data_list = []
         if not self.geos_index or not select:
             for quantity in var_list:
-                print("using {} backend to read data".format(self.backend))
                 data_list.append( self.data_reader.read_species_data(
                     iteration, species, quantity, self.extensions))
             # Apply selection if needed

@@ -287,6 +287,7 @@ class DataReader( object ):
         extensions: list of strings
             The extensions that the current OpenPMDTimeSeries complies with
         """
+        print(f"read data from disk: {record_comp}")
         if self.backend == 'h5py':
             filename = self.iteration_to_file[iteration]
             return h5py_reader.read_species_data(
