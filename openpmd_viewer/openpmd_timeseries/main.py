@@ -382,10 +382,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                                 del block_result_list[0][block_start]
 
                     # plot particle number distribution
-                    particle_number = list()
-                    for block_ in block_result_list[0].values():
-                        particle_number.append(block_.end - block_.start)
-                    plt.hist(particle_number)
+                    # particle_number = list()
+                    # for block_ in block_result_list[0].values():
+                    #     particle_number.append(block_.end - block_.start)
+                    # plt.hist(particle_number)
+
+                    if len(block_result_list[0]) == 0:
+                        return list(), list()
 
                     data_map = dict()
                     data_size = None
@@ -410,6 +413,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
                             for slice_start in list(block_result_list[0][block_start].q.keys()):
                                 if slice_start not in block_result_list[1][block_start].q.keys():
                                     del block_result_list[0][block_start].q[slice_start]
+
+                    if len(block_result_list[0]) == 0:
+                        return list(), list()
 
                     data_map = dict()
                     data_size = None

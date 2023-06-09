@@ -72,8 +72,12 @@ from openpmd_viewer import OpenPMDTimeSeries
 geos_ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api', geos_index=True,
                        rocksdb_path="/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/rocksdb")
 
+# z_selected, uz_selected = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'z':[19e-6, 21e-6], 'uz':[0.7, 1.0]}, direct_block_read=True, only_first_level=True)
+#
+# %%time
 z_selected, uz_selected = geos_ts.get_particle( ['z', 'uz'], species='electrons',
-                            iteration=300, select={'z':[19e-6, 21e-6], 'uz':[0.7, 1.0]}, direct_block_read=True, only_first_level=True)
+                            iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]}, direct_block_read=True, only_first_level=True)
 from openpmd_viewer import ParticleTracker
 # Select particles to be tracked, at iteration 300
 pt = ParticleTracker( ts, iteration=300, select={'z':[22e-6,40e-6]}, species='electrons' )
