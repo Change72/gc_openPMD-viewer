@@ -145,7 +145,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
     def get_particle(self, var_list=None, species=None, t=None, iteration=None,
             select=None, plot=False, nbins=150,
             plot_range=[[None, None], [None, None]],
-            use_field_mesh=True, histogram_deposition='cic', **kw):
+            use_field_mesh=True, direct_block_read=False, histogram_deposition='cic', **kw):
         """
         Extract a list of particle variables an openPMD file.
 
@@ -331,35 +331,61 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] /= momentum_constant
 
                 query_result = list()
-                for i, select_type in enumerate(select_map.keys()):
-                    key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
 
-                    # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
-                    result = self.query_geos_index.queryByXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])    
-                    query_result.append(result)
+                if not direct_block_read:
+                    for i, select_type in enumerate(select_map.keys()):
+                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                        # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
+                        result = self.query_geos_index.queryByXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])
+                        query_result.append(result)
 
-                # mix query_result if select_map == 2
-                if len(select_map.keys()) == 2:
-                    # todo try to optimize later
-                    set1 = set(map(self.result_to_tuple, query_result[0]))
-                    set2 = set(map(self.result_to_tuple, query_result[1]))
+                    # mix query_result if select_map == 2
+                    if len(select_map.keys()) == 2:
+                        # todo try to optimize later
+                        set1 = set(map(self.result_to_tuple, query_result[0]))
+                        set2 = set(map(self.result_to_tuple, query_result[1]))
 
-                    query_result[0] = list(set1.intersection(set2))
+                        query_result[0] = list(set1.intersection(set2))
+                    else:
+                        query_result[0] = list(map(self.result_to_tuple, query_result[0]))
+
+                    if len(query_result[0]) == 0:
+                        return list(), list()
+
+                    # 2. [multiple columns] read data [slice level]
+                    # type 1: target_select_data, get_particle( ['z', 'uz']
+                    # type 2: the data in select, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02]}
+                    data_map = dict()
+                    data_size = None
+                    for quantity in set(var_list + list(select.keys())):
+                        #todo optimize read data
+                        data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
+                        data_size = len(data_map[quantity])
                 else:
-                    query_result[0] = list(map(self.result_to_tuple, query_result[0]))
+                    block_result_list = list()
+                    for i, select_type in enumerate(select_map.keys()):
+                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                        direct_block_result = self.query_geos_index.queryByBlockXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])
+                        block_result_list.append(direct_block_result)
 
-                if len(query_result[0]) == 0:
-                    return list(), list()
+                    if len(select_map.keys()) == 2:
+                        block_keys_to_delete = list()
+                        slice_keys_to_delete = dict()
+                        for block_start in list(block_result_list[0].keys()):
+                            if block_start not in block_result_list[1].keys():
+                                del block_result_list[0][block_start]
+                                continue
+                            for slice_start in list(block_result_list[0][block_start].q.keys()):
+                                if slice_start not in block_result_list[1][block_start].q.keys():
+                                    del block_result_list[0][block_start].q[slice_start]
 
-                # 2. [multiple columns] read data [slice level]
-                # type 1: target_select_data, get_particle( ['z', 'uz']
-                # type 2: the data in select, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02]}
-                data_map = dict()
-                data_size = None
-                for quantity in set(var_list + list(select.keys())):
-                    #todo optimize read data
-                    data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
-                    data_size = len(data_map[quantity])
+                    data_map = dict()
+                    data_size = None
+                    for quantity in set(var_list + list(select.keys())):
+                        #todo optimize read data
+                        data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, block_result_list[0])
+                        data_size = len(data_map[quantity])
+
 
                 select_array = np.ones(data_size, dtype='bool')
                 for quantity in select.keys():

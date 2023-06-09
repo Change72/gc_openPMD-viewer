@@ -39,14 +39,14 @@ from openpmd_viewer import OpenPMDTimeSeries
 # ts.get_particle( ['z', 'uz'], species='electrons', iteration=300, plot=True, vmax=1e12 )
 
 from openpmd_viewer import OpenPMDTimeSeries
-ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/")
-ts.get_particle( ['z', 'uz'], species='electrons', iteration=300, plot=True, vmax=1e6 )
-z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
-                            iteration=300, select={'z':[22e-6, 40e-6]} )
-plt.plot(z_selected, uz_selected, 'g.')
-print(len(z_selected))
+# ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/")
+# ts.get_particle( ['z', 'uz'], species='electrons', iteration=300, plot=True, vmax=1e6 )
+# z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'z':[22e-6, 40e-6]} )
+# plt.plot(z_selected, uz_selected, 'g.')
+# print(len(z_selected))
 
-ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/", backend='openpmd-api')
+# ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/", backend='openpmd-api')
 
 # ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/", backend='openpmd-api', geos_index=True,
 #                        rocksdb_path="/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/rocksdb")
@@ -60,14 +60,20 @@ ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/", ba
                             # iteration=400, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02], 'uz':[7.996e-25, 0.0010]} )
 # z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
 #                             iteration=300, select={'x':[-6.996e-7, 6.996e-7], 'y':[-0.06996e-7, 0.06996e-7], 'z':[22e-6,40e-6]} )
-z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
-                            iteration=300, select={'z':[22e-6, 40e-6]} )
+# z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'z':[22e-6, 40e-6], 'uz':[7.996e-25, 0.0010]})
+# z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'z':[22e-6, 40e-6], 'uz':[7.996e-25, 0.0010]}, direct_block_read=True )
 # z_selected, uz_selected = ts.get_particle( ['z', 'uz'], species='electrons',
 #                             iteration=300, select={'uz':[7.996e-25, 0.0010]} )
 # plt.plot(z_selected, uz_selected, 'g.')
 # print()
 
+geos_ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api', geos_index=True,
+                       rocksdb_path="/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/rocksdb")
 
+z_selected, uz_selected = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+                            iteration=300, select={'z':[19e-6, 21e-6], 'uz':[0.7, 1.0]}, direct_block_read=True )
 from openpmd_viewer import ParticleTracker
 # Select particles to be tracked, at iteration 300
 pt = ParticleTracker( ts, iteration=300, select={'z':[22e-6,40e-6]}, species='electrons' )

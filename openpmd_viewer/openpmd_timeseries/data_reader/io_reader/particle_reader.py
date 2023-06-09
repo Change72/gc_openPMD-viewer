@@ -118,6 +118,21 @@ def gc_get_data(series, component, chunk_slices, output_type=None):
     return data
 
 
+def gc_get_data_block(series, component, blocks, output_type=None):
+    raw_data_list = list()
+    for block_info in blocks.values():
+        block_index = slice(block_info.start, block_info.end + 1, None)
+        x = component[block_index]
+        series.flush()
+        for q_slice in block_info.q.values():
+            raw_data_list.append(x[q_slice.start - block_info.start:q_slice.end - block_info.start])
+    data = np.concatenate(raw_data_list)
+
+    if (output_type is not None) and (data.dtype != output_type):
+        data = data.astype( output_type )
+    return data
+
+
 def gc_index_read_species_data(series, iteration, species_name, component_name,
                       extensions, geos_results):
     it = series.iterations[iteration]
@@ -154,21 +169,37 @@ def gc_index_read_species_data(series, iteration, species_name, component_name,
     else:
         output_type = np.float64
 
-    chunk_slices = tuple_to_slice(geos_results)
+    if isinstance(geos_results, dict):
+        data = gc_get_data_block(series, component, geos_results, output_type)
+        # - Return positions, with an offset
+        if component_name in ['x', 'y', 'z']:
+            offset = gc_get_data_block(series, species['positionOffset'][component_name], geos_results)
+            if np.all(offset != 0):
+                data += offset
+        # - Return momentum in normalized units
+        elif component_name in ['ux', 'uy', 'uz' ]:
+            mass_component = next(species['mass'].items())[1]
+            m = gc_get_data_block(series, mass_component, geos_results)
+            # Normalize only if the particle mass is non-zero
+            if np.all( m != 0 ):
+                norm_factor = 1. / (m * constants.c)
+                data *= norm_factor
 
-    data = gc_get_data(series, component, chunk_slices, output_type)
-    # - Return positions, with an offset
-    if component_name in ['x', 'y', 'z']:
-        offset = gc_get_data(series, species['positionOffset'][component_name], chunk_slices)
-        if np.all(offset != 0):
-            data += offset
-    # - Return momentum in normalized units
-    elif component_name in ['ux', 'uy', 'uz' ]:
-        mass_component = next(species['mass'].items())[1]
-        m = gc_get_data(series, mass_component, chunk_slices)
-        # Normalize only if the particle mass is non-zero
-        if np.all( m != 0 ):
-            norm_factor = 1. / (m * constants.c)
-            data *= norm_factor
+    elif isinstance(geos_results, list):
+        chunk_slices = tuple_to_slice(geos_results)
+        data = gc_get_data(series, component, chunk_slices, output_type)
+        # - Return positions, with an offset
+        if component_name in ['x', 'y', 'z']:
+            offset = gc_get_data(series, species['positionOffset'][component_name], chunk_slices)
+            if np.all(offset != 0):
+                data += offset
+        # - Return momentum in normalized units
+        elif component_name in ['ux', 'uy', 'uz' ]:
+            mass_component = next(species['mass'].items())[1]
+            m = gc_get_data(series, mass_component, chunk_slices)
+            # Normalize only if the particle mass is non-zero
+            if np.all( m != 0 ):
+                norm_factor = 1. / (m * constants.c)
+                data *= norm_factor
 
     return data
