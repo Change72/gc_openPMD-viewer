@@ -124,8 +124,11 @@ def gc_get_data_block(series, component, blocks, output_type=None):
         block_index = slice(block_info.start, block_info.end + 1, None)
         x = component[block_index]
         series.flush()
-        for q_slice in block_info.q.values():
-            raw_data_list.append(x[q_slice.start - block_info.start:q_slice.end - block_info.start])
+        if not block_info.q:
+            raw_data_list.append(x)
+        else:
+            for q_slice in block_info.q.values():
+                raw_data_list.append(x[q_slice.start - block_info.start:q_slice.end - block_info.start])
     data = np.concatenate(raw_data_list)
 
     if (output_type is not None) and (data.dtype != output_type):

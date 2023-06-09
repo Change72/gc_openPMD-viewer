@@ -145,7 +145,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
     def get_particle(self, var_list=None, species=None, t=None, iteration=None,
             select=None, plot=False, nbins=150,
             plot_range=[[None, None], [None, None]],
-            use_field_mesh=True, direct_block_read=False, histogram_deposition='cic', **kw):
+            use_field_mesh=True, direct_block_read=False, only_first_level=False,
+            simulate_adios=False, histogram_deposition='cic', **kw):
         """
         Extract a list of particle variables an openPMD file.
 
@@ -332,7 +333,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 query_result = list()
 
-                if not direct_block_read:
+                if not direct_block_read and not only_first_level:
                     for i, select_type in enumerate(select_map.keys()):
                         key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
                         # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
@@ -361,7 +362,34 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         #todo optimize read data
                         data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
                         data_size = len(data_map[quantity])
-                else:
+
+                elif direct_block_read and only_first_level:
+                    block_result_list = list()
+                    for i, select_type in enumerate(select_map.keys()):
+                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                        direct_block_result = self.query_geos_index.queryByOnlyBlockXYZ(key,
+                                                                                        select_map[select_type]["minx"],
+                                                                                        select_map[select_type]["maxx"],
+                                                                                        select_map[select_type]["miny"],
+                                                                                        select_map[select_type]["maxy"],
+                                                                                        select_map[select_type]["minz"],
+                                                                                        select_map[select_type]["maxz"])
+                        block_result_list.append(direct_block_result)
+
+                    if len(select_map.keys()) == 2:
+                        for block_start in list(block_result_list[0].keys()):
+                            if block_start not in block_result_list[1].keys():
+                                del block_result_list[0][block_start]
+
+                    data_map = dict()
+                    data_size = None
+                    for quantity in set(var_list + list(select.keys())):
+                        # todo optimize read data
+                        data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity,
+                                                                                self.extensions, block_result_list[0])
+                        data_size = len(data_map[quantity])
+
+                elif direct_block_read:
                     block_result_list = list()
                     for i, select_type in enumerate(select_map.keys()):
                         key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
@@ -369,8 +397,6 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         block_result_list.append(direct_block_result)
 
                     if len(select_map.keys()) == 2:
-                        block_keys_to_delete = list()
-                        slice_keys_to_delete = dict()
                         for block_start in list(block_result_list[0].keys()):
                             if block_start not in block_result_list[1].keys():
                                 del block_result_list[0][block_start]
@@ -385,6 +411,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         #todo optimize read data
                         data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, block_result_list[0])
                         data_size = len(data_map[quantity])
+
 
 
                 select_array = np.ones(data_size, dtype='bool')
