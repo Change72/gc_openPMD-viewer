@@ -7,7 +7,7 @@ Copyright 2015-2016, openPMD-viewer contributors
 Authors: Remi Lehe, Axel Huebl
 License: 3-Clause-BSD-LBNL
 """
-
+import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 from .utilities import apply_selection, fit_bins_to_grid, try_array, \
@@ -380,6 +380,12 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         for block_start in list(block_result_list[0].keys()):
                             if block_start not in block_result_list[1].keys():
                                 del block_result_list[0][block_start]
+
+                    # plot particle number distribution
+                    particle_number = list()
+                    for block_ in block_result_list[0].values():
+                        particle_number.append(block_.end - block_.start)
+                    plt.hist(particle_number)
 
                     data_map = dict()
                     data_size = None
