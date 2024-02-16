@@ -492,8 +492,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         if len(block_result_list[0]) == 0:
                             return list(), list()
 
-                        self.sorted_blocks = sorted(block_result_list[0].items(), key=lambda x: x[0])
+                        self.sorted_blocks = sorted(block_result_list[0].items(), key=lambda x: int(x[0]))
                         if read_groups:
+                            self.read_strategy = list()
                             self.find_optimal_strategy(0, len(self.sorted_blocks) - 1, 0)
 
                         data_map = dict()
