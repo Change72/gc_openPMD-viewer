@@ -268,7 +268,7 @@ class DataReader( object ):
                 self.series, iteration, field, coord, slice_relative_position,
                 slice_across, m, theta, max_resolution_3d )
 
-    def read_species_data( self, iteration, species, record_comp, extensions, geos_results=None):
+    def read_species_data( self, iteration, species, record_comp, extensions, geos_results=None, read_strategy=None):
         """
         Extract a given species' record_comp
 
@@ -298,7 +298,7 @@ class DataReader( object ):
                         self.series, iteration, species, record_comp, extensions )
             else:
                 return io_reader.gc_index_read_species_data(
-                        self.series, iteration, species, record_comp, extensions, geos_results)
+                        self.series, iteration, species, record_comp, extensions, geos_results, read_strategy)
 
     def get_grid_parameters(self, iteration, avail_fields, metadata ):
         """

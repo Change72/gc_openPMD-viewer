@@ -7,18 +7,17 @@ Copyright 2015-2016, openPMD-viewer contributors
 Authors: Remi Lehe, Axel Huebl
 License: 3-Clause-BSD-LBNL
 """
-import matplotlib.pyplot as plt
+import geosindex
 import numpy as np
+from scipy import constants
 from tqdm import tqdm
-from .utilities import apply_selection, fit_bins_to_grid, try_array, \
-                        sanitize_slicing, combine_cylindrical_components
-from .plotter import Plotter
-from .particle_tracker import ParticleTracker
+
 from .data_reader import DataReader, available_backends
 from .interactive import InteractiveViewer
-from scipy import constants
-
-import geosindex
+from .particle_tracker import ParticleTracker
+from .plotter import Plotter
+from .utilities import apply_selection, fit_bins_to_grid, try_array, \
+    sanitize_slicing, combine_cylindrical_components
 
 
 # Define a custom Exception
@@ -37,7 +36,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
     - slider
     """
 
-    def __init__(self, path_to_dir, check_all_files=True, backend=None, geos_index=False, rocksdb_path=None, key_generation_function=None):
+    def __init__(self, path_to_dir, check_all_files=True, backend=None, geos_index=False, rocksdb_path=None, 
+    key_generation_function=None, UseMinMaxIndex=False, MinMaxIndexFileName=None):
         """
         Initialize an openPMD time series
 
@@ -77,10 +77,19 @@ class OpenPMDTimeSeries(InteractiveViewer):
         self.geos_index = geos_index
         if self.geos_index:
             self.query_geos_index = geosindex.QueryGEOSINDEX(rocksdb_path)
+            pass
+
+        self.UseMinMaxIndex = UseMinMaxIndex
+        if self.UseMinMaxIndex:
+            # initialize with MinMaxIndexFileName
+            self.MinMaxIndex = geosindex.MinMaxQuery(MinMaxIndexFileName)
+            pass
+
+        if self.geos_index or self.UseMinMaxIndex:
             if key_generation_function:
                 self.key_generation_function = key_generation_function
             else:
-                self.key_generation_function = lambda iteration, species, type: f"/data/{iteration}/particles/{species}/{type}/"
+                self.key_generation_function = lambda iteration, species, type, dimension=None: f"/data/{iteration}/particles/{species}/{type}/" + (f"{dimension}" if dimension else "")
             pass
 
         # Initialize data reader
@@ -139,13 +148,65 @@ class OpenPMDTimeSeries(InteractiveViewer):
         # - Initialize a plotter object, which holds information about the time
         self.plotter = Plotter(self.t, self.iterations)
 
+        # - gc read strategy
+        self.max_level = 3
+        self.max_read_length = 100000000
+        self.sorted_blocks = None
+        self.read_strategy = list()
+        self.k = (3.7/3.4)*10e-8
+        self.b = 0.06
+
+
     def result_to_tuple(self, result_obj):
         return result_obj.start, result_obj.end, None
+
+    def find_optimal_strategy(self, start, end, current_level):
+        """
+        Finds the optimal strategy for reading a list of one-dimensional points.
+
+        Args:
+            start (int): The start index of the list.
+            end (int): The end index of the list.
+            current_level (int): The current level of the recursion.
+
+        Returns:
+            A tuple containing the optimal cost and the list of indices to cut the list at.
+        """
+        if current_level > self.max_level:
+            self.read_strategy.append((start, end))
+            return 
+
+        # calculate the maximum gap between points
+        max_gap = 0
+        left_end = 0
+        right_start = 0
+        for i in range(start, end):
+            gap = int(self.sorted_blocks[i+1][1].start) - int(self.sorted_blocks[i][1].end)
+            if gap > max_gap:
+                max_gap = gap
+                left_end = i
+                right_start = i+1
+
+        # original_cost = (int(self.sorted_blocks[-1]) - int(self.sorted_blocks[0])) * k + b
+        # new_cost = (int(self.sorted_blocks[left_end]) - int(self.sorted_blocks[0])) * k + b + (int(self.sorted_blocks[-1] - int(self.sorted_blocks[right_start]) * k + b
+        # new_cost - original_cost = (int(self.sorted_blocks[left_end] - int(self.sorted_blocks[right_start]) * k + b
+        temp1 = (int(self.sorted_blocks[left_end][1].start) - int(self.sorted_blocks[right_start][1].end)) * self.k + self.b
+        temp2 = int(self.sorted_blocks[left_end][1].end) - int(self.sorted_blocks[start][1].start)
+        temp3 = int(self.sorted_blocks[end][1].end) - int(self.sorted_blocks[right_start][1].start)
+        if (int(self.sorted_blocks[left_end][1].start) - int(self.sorted_blocks[right_start][1].end)) * self.k + self.b < 0 \
+                or int(self.sorted_blocks[left_end][1].end) - int(self.sorted_blocks[start][1].start) > self.max_read_length \
+                or int(self.sorted_blocks[end][1].end) - int(self.sorted_blocks[right_start][1].start) > self.max_read_length:
+            # if the cost of reading 2 times is less than the cost of reading once, then read twice
+            self.find_optimal_strategy(start, left_end, current_level+1)
+            self.find_optimal_strategy(right_start, end, current_level+1)
+        else:
+            self.read_strategy.append((start, end))
+            return 
 
     def get_particle(self, var_list=None, species=None, t=None, iteration=None,
             select=None, plot=False, nbins=150,
             plot_range=[[None, None], [None, None]],
-            use_field_mesh=True, direct_block_read=False, only_first_level=False,
+            use_field_mesh=True, direct_block_read=False, only_first_level=False, read_groups=False,
             simulate_adios=False, histogram_deposition='cic', **kw):
         """
         Extract a list of particle variables an openPMD file.
@@ -291,7 +352,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
         # Extract the list of particle quantities
         data_list = []
-        if not self.geos_index or not select:
+        if (not self.geos_index and not self.UseMinMaxIndex) or not select:
             for quantity in var_list:
                 data_list.append( self.data_reader.read_species_data(
                     iteration, species, quantity, self.extensions))
@@ -302,128 +363,184 @@ class OpenPMDTimeSeries(InteractiveViewer):
             elif isinstance( select, ParticleTracker ):
                 data_list = select.extract_tracked_particles( iteration,
                     self.data_reader, data_list, species, self.extensions )
+            print(len(data_list[0]))
         else:
             # 1. [multiple columns] use geos_index to coarse selection return [a list of [key/block, start, count]]
             if isinstance( select, dict ):
                 dict_record_comp = {'x': ['position', 'x'],
-                                    'y': ['position', 'y'],
-                                    'z': ['position', 'z'],
-                                    'ux': ['momentum', 'x'],
-                                    'uy': ['momentum', 'y'],
-                                    'uz': ['momentum', 'z'],
-                                    'w': ['weighting', None]}
-                select_map = dict()
+                    'y': ['position', 'y'],
+                    'z': ['position', 'z'],
+                    'ux': ['momentum', 'x'],
+                    'uy': ['momentum', 'y'],
+                    'uz': ['momentum', 'z'],
+                    'w': ['weighting', None]}
+
                 mass = 9.1093829099999999e-31
                 momentum_constant = 1. / (mass * constants.c)
-                for quantity in select.keys():
-                    if dict_record_comp[quantity][0] not in select_map.keys():
-                        select_map[dict_record_comp[quantity][0]] = dict()
-                        select_map[dict_record_comp[quantity][0]]["minx"] = -np.inf
-                        select_map[dict_record_comp[quantity][0]]["maxx"] = np.inf
-                        select_map[dict_record_comp[quantity][0]]["miny"] = -np.inf
-                        select_map[dict_record_comp[quantity][0]]["maxy"] = np.inf
-                        select_map[dict_record_comp[quantity][0]]["minz"] = -np.inf
-                        select_map[dict_record_comp[quantity][0]]["maxz"] = np.inf
 
-                    select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] = select[quantity][0]
-                    select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] = select[quantity][1]
-                    if dict_record_comp[quantity][0] == "momentum":
-                        select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] /= momentum_constant
-                        select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] /= momentum_constant
-
-                query_result = list()
-
-                if not direct_block_read and not only_first_level:
-                    for i, select_type in enumerate(select_map.keys()):
-                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
-                        # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
-                        result = self.query_geos_index.queryByXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])
+                if self.UseMinMaxIndex:
+                    query_result = list()
+                    for quantity in select.keys():
+                        key = self.key_generation_function(iteration=iteration, species=species, type=dict_record_comp[quantity][0], dimension=dict_record_comp[quantity][1])
+                        if dict_record_comp[quantity][0] == "momentum":
+                            result = self.MinMaxIndex.queryMinMaxData(key, select[quantity][0]/momentum_constant, select[quantity][1]/momentum_constant)
+                        else:
+                            result = self.MinMaxIndex.queryMinMaxData(key, select[quantity][0], select[quantity][1])
                         query_result.append(result)
 
-                    # mix query_result if select_map == 2
-                    if len(select_map.keys()) == 2:
-                        # todo try to optimize later
-                        set1 = set(map(self.result_to_tuple, query_result[0]))
-                        set2 = set(map(self.result_to_tuple, query_result[1]))
-
-                        query_result[0] = list(set1.intersection(set2))
-                    else:
-                        query_result[0] = list(map(self.result_to_tuple, query_result[0]))
+                    set1 = set(map(self.result_to_tuple, query_result[0]))
+                    for i, result in enumerate(query_result):
+                        if i == 0:
+                            continue
+                        set1 = set1.intersection(set(map(self.result_to_tuple, result)))
+                    query_result[0] = list(set1)
 
                     if len(query_result[0]) == 0:
                         return list(), list()
 
-                    # 2. [multiple columns] read data [slice level]
-                    # type 1: target_select_data, get_particle( ['z', 'uz']
-                    # type 2: the data in select, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02]}
+                    # 2. read data based on query_result[0]
                     data_map = dict()
                     data_size = None
                     for quantity in set(var_list + list(select.keys())):
                         #todo optimize read data
                         data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
                         data_size = len(data_map[quantity])
+                    print("Query by MinMaxIndex and read data size: ", data_size)
+                    pass
+                elif self.geos_index:
+                    select_map = dict()
+                    for quantity in select.keys():
+                        if dict_record_comp[quantity][0] not in select_map.keys():
+                            select_map[dict_record_comp[quantity][0]] = dict()
+                            select_map[dict_record_comp[quantity][0]]["minx"] = -np.inf
+                            select_map[dict_record_comp[quantity][0]]["maxx"] = np.inf
+                            select_map[dict_record_comp[quantity][0]]["miny"] = -np.inf
+                            select_map[dict_record_comp[quantity][0]]["maxy"] = np.inf
+                            select_map[dict_record_comp[quantity][0]]["minz"] = -np.inf
+                            select_map[dict_record_comp[quantity][0]]["maxz"] = np.inf
 
-                elif direct_block_read and only_first_level:
-                    block_result_list = list()
-                    for i, select_type in enumerate(select_map.keys()):
-                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
-                        direct_block_result = self.query_geos_index.queryByOnlyBlockXYZ(key,
+                        select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] = select[quantity][0]
+                        select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] = select[quantity][1]
+                        if dict_record_comp[quantity][0] == "momentum":
+                            select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] /= momentum_constant
+                            select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] /= momentum_constant
+
+
+
+                    query_result = list()
+
+                    if not direct_block_read and not only_first_level:
+                        for i, select_type in enumerate(select_map.keys()):
+                            key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                            # result = self.query_geos_index.queryByXYZ(key, -0.06996e-25, -0.06996e-24, -0.06996e-5, 0.06996e-5, 4.996e-05, 7.996e-02)
+                            result = self.query_geos_index.queryByXYZ(key, select_map[select_type]["minx"],
+                                                                      select_map[select_type]["maxx"],
+                                                                      select_map[select_type]["miny"],
+                                                                      select_map[select_type]["maxy"],
+                                                                      select_map[select_type]["minz"],
+                                                                      select_map[select_type]["maxz"])
+                            query_result.append(result)
+
+                        # mix query_result if select_map == 2
+                        if len(select_map.keys()) == 2:
+                            # todo try to optimize later
+                            set1 = set(map(self.result_to_tuple, query_result[0]))
+                            set2 = set(map(self.result_to_tuple, query_result[1]))
+
+                            query_result[0] = list(set1.intersection(set2))
+                        else:
+                            query_result[0] = list(map(self.result_to_tuple, query_result[0]))
+
+                        if len(query_result[0]) == 0:
+                            return list(), list()
+
+                        # 2. [multiple columns] read data [slice level]
+                        # type 1: target_select_data, get_particle( ['z', 'uz']
+                        # type 2: the data in select, select={'x':[-0.06996e-25, -0.06996e-24], 'y':[-0.06996e-5, 0.06996e-5], 'z':[4.996e-05, 7.996e-02]}
+                        data_map = dict()
+                        data_size = None
+                        for quantity in set(var_list + list(select.keys())):
+                            #todo optimize read data
+                            data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, query_result[0])
+                            data_size = len(data_map[quantity])
+                            print(data_size)
+
+                    elif direct_block_read and only_first_level:
+                        block_result_list = list()
+                        for i, select_type in enumerate(select_map.keys()):
+                            key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                            direct_block_result = self.query_geos_index.queryByOnlyBlockXYZ(key,
+                                                                                            select_map[select_type]["minx"],
+                                                                                            select_map[select_type]["maxx"],
+                                                                                            select_map[select_type]["miny"],
+                                                                                            select_map[select_type]["maxy"],
+                                                                                            select_map[select_type]["minz"],
+                                                                                            select_map[select_type]["maxz"])
+                            block_result_list.append(direct_block_result)
+
+                        if len(select_map.keys()) == 2:
+                            for block_start in list(block_result_list[0].keys()):
+                                if block_start not in block_result_list[1].keys():
+                                    del block_result_list[0][block_start]
+
+                        # plot particle number distribution
+                        # particle_number = list()
+                        # for block_ in block_result_list[0].values():
+                        #     particle_number.append(block_.end - block_.start)
+                        # plt.hist(particle_number)
+
+                        if len(block_result_list[0]) == 0:
+                            return list(), list()
+
+                        self.sorted_blocks = sorted(block_result_list[0].items(), key=lambda x: x[0])
+                        if read_groups:
+                            self.find_optimal_strategy(0, len(self.sorted_blocks) - 1, 0)
+
+                        data_map = dict()
+                        data_size = None
+                        for quantity in set(var_list + list(select.keys())):
+                            # todo optimize read data
+                            if read_groups:
+                                data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity,
+                                                                                        self.extensions, self.sorted_blocks, self.read_strategy)
+                            else:
+                                data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, block_result_list[0])
+
+                            data_size = len(data_map[quantity])
+                        print(data_size)
+
+                    elif direct_block_read:
+                        block_result_list = list()
+                        for i, select_type in enumerate(select_map.keys()):
+                            key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
+                            direct_block_result = self.query_geos_index.queryByBlockXYZ(key,
                                                                                         select_map[select_type]["minx"],
                                                                                         select_map[select_type]["maxx"],
                                                                                         select_map[select_type]["miny"],
                                                                                         select_map[select_type]["maxy"],
                                                                                         select_map[select_type]["minz"],
                                                                                         select_map[select_type]["maxz"])
-                        block_result_list.append(direct_block_result)
+                            block_result_list.append(direct_block_result)
 
-                    if len(select_map.keys()) == 2:
-                        for block_start in list(block_result_list[0].keys()):
-                            if block_start not in block_result_list[1].keys():
-                                del block_result_list[0][block_start]
+                        if len(select_map.keys()) == 2:
+                            for block_start in list(block_result_list[0].keys()):
+                                if block_start not in block_result_list[1].keys():
+                                    del block_result_list[0][block_start]
+                                    continue
+                                for slice_start in list(block_result_list[0][block_start].q.keys()):
+                                    if slice_start not in block_result_list[1][block_start].q.keys():
+                                        del block_result_list[0][block_start].q[slice_start]
 
-                    # plot particle number distribution
-                    # particle_number = list()
-                    # for block_ in block_result_list[0].values():
-                    #     particle_number.append(block_.end - block_.start)
-                    # plt.hist(particle_number)
+                        if len(block_result_list[0]) == 0:
+                            return list(), list()
 
-                    if len(block_result_list[0]) == 0:
-                        return list(), list()
-
-                    data_map = dict()
-                    data_size = None
-                    for quantity in set(var_list + list(select.keys())):
-                        # todo optimize read data
-                        data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity,
-                                                                                self.extensions, block_result_list[0])
-                        data_size = len(data_map[quantity])
-
-                elif direct_block_read:
-                    block_result_list = list()
-                    for i, select_type in enumerate(select_map.keys()):
-                        key = self.key_generation_function(iteration=iteration, species=species, type=select_type)
-                        direct_block_result = self.query_geos_index.queryByBlockXYZ(key, select_map[select_type]["minx"], select_map[select_type]["maxx"], select_map[select_type]["miny"], select_map[select_type]["maxy"], select_map[select_type]["minz"], select_map[select_type]["maxz"])
-                        block_result_list.append(direct_block_result)
-
-                    if len(select_map.keys()) == 2:
-                        for block_start in list(block_result_list[0].keys()):
-                            if block_start not in block_result_list[1].keys():
-                                del block_result_list[0][block_start]
-                                continue
-                            for slice_start in list(block_result_list[0][block_start].q.keys()):
-                                if slice_start not in block_result_list[1][block_start].q.keys():
-                                    del block_result_list[0][block_start].q[slice_start]
-
-                    if len(block_result_list[0]) == 0:
-                        return list(), list()
-
-                    data_map = dict()
-                    data_size = None
-                    for quantity in set(var_list + list(select.keys())):
-                        #todo optimize read data
-                        data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, block_result_list[0])
-                        data_size = len(data_map[quantity])
-
+                        data_map = dict()
+                        data_size = None
+                        for quantity in set(var_list + list(select.keys())):
+                            #todo optimize read data
+                            data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, block_result_list[0])
+                            data_size = len(data_map[quantity])
+                        print(data_size)
 
 
                 select_array = np.ones(data_size, dtype='bool')
@@ -443,7 +560,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 for key in var_list:
                     if len(data_map[key]) > 1:  # Do not apply selection on scalar records
                         data_list.append(data_map[key][select_array])
-                print()
+                print(len(data_list[0]))
 
             else:
                 # todo particle tracing
