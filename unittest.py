@@ -5,7 +5,8 @@ import geosindex
 # print(result[0].start, result[0].end)
 
 key = "/data/300/particles/electrons/position/x"
-minMaxIndex = geosindex.MinMaxQuery("minmaxindex", "file")
+minMaxIndex = geosindex.MinMaxQuery("/data/gc/rocksdb-index/GEOSIndex/cmake-build-debug/minmaxindex", "file")
+# minMaxIndex = geosindex.MinMaxQuery("minmaxindex", "file")
 result = minMaxIndex.queryMinMaxData(key, -1.96879e-05, -1.96878e-05)
 for i in result:
     print(i.start, i.end)

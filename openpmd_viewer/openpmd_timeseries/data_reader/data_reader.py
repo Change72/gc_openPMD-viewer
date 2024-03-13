@@ -268,7 +268,7 @@ class DataReader( object ):
                 self.series, iteration, field, coord, slice_relative_position,
                 slice_across, m, theta, max_resolution_3d )
 
-    def read_species_data( self, iteration, species, record_comp, extensions, geos_results=None, read_strategy=None):
+    def read_species_data( self, iteration, species, record_comp, extensions, read_chunk_range=None):
         """
         Extract a given species' record_comp
 
@@ -293,12 +293,8 @@ class DataReader( object ):
             return h5py_reader.read_species_data(
                     filename, iteration, species, record_comp, extensions )
         elif self.backend == 'openpmd-api':
-            if not geos_results:
-                return io_reader.read_species_data(
-                        self.series, iteration, species, record_comp, extensions )
-            else:
-                return io_reader.gc_index_read_species_data(
-                        self.series, iteration, species, record_comp, extensions, geos_results, read_strategy)
+            return io_reader.read_species_data(
+                    self.series, iteration, species, record_comp, extensions, read_chunk_range)
 
     def get_grid_parameters(self, iteration, avail_fields, metadata ):
         """
