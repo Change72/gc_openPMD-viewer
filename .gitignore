@@ -10,4 +10,5 @@ openpmd_viewer.egg-info/
 __pycache__
 tutorials/example-2d
 example-2d
-.idea/
+.idea/*
+
