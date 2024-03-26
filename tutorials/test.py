@@ -51,16 +51,20 @@ from openpmd_viewer import OpenPMDTimeSeries
 
 # 1. Original
 
-ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api')
-start = time.time()
+# ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api')
+# start = time.time()
+#
+# z_selected_minmax = ts.get_particle(['z'], species='electrons', iteration=300)
+# end = time.time()
+# print("Time elapsed: ", end - start)
+#
+#
+# # z_selected_original, uz_selected_original = ts.get_particle( ['z', 'uz'], species='electrons',
+# #                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]})
 # z_selected_original, uz_selected_original = ts.get_particle( ['z', 'uz'], species='electrons',
-#                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]})
-z_selected_original, uz_selected_original = ts.get_particle( ['z', 'uz'], species='electrons',
-                            iteration=300, select={'z':[2.05e-6, 2.10e-6]},
-)
+#                             iteration=300, select={'x':[0, 2]},
+# )
 
-end = time.time()
-print("Time elapsed: ", end - start)
 
 
 # 2. MinMax-File direct block read
@@ -75,9 +79,13 @@ start = time.time()
 # z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
 #                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]})
 
-z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
-                            iteration=300, select={'z':[2.05e-6, 2.10e-6]},
-                                                )
+# z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'z':[2.05e-6, 2.10e-6]}, geos_index_direct_block_read=True
+#                                                 )
+
+# get the total particle number
+z_selected_minmax = geos_ts.get_particle(['z'], species='electrons', iteration=300, geos_index_read_groups=True, 
+select={'z':[-np.inf, np.inf]})
 
 end = time.time()
 print("Time elapsed: ", end - start)
@@ -85,8 +93,8 @@ print("Time elapsed: ", end - start)
 
 # 3. MinMax-File read groups
 
-geos_ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api', geos_index=True, geos_index_type="minmax",
-                 geos_index_storage_backend="file", geos_index_save_path="/data/gc/rocksdb-index/GEOSIndex/cmake-build-debug/diag2")
+# geos_ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api', geos_index=True, geos_index_type="rtree",
+#                  geos_index_storage_backend="rocksdb", geos_index_save_path="/data/gc/rocksdb-index/GEOSIndex/cmake-build-debug/diag2")
 
 # timer 
 
@@ -101,11 +109,72 @@ z_selected, uz_selected = geos_ts.get_particle( ['z', 'uz'], species='electrons'
 end = time.time()
 print("Time elapsed: ", end - start)
 
-print(np.array_equal(np.sort(z_selected), np.sort(z_selected_original)))
-print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_original)))
+
+
+# 4. MinMax-File use secondary index
+
+geos_ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/", backend='openpmd-api', geos_index=True, geos_index_type="minmax",
+                 geos_index_storage_backend="file", geos_index_save_path="/data/gc/rocksdb-index/GEOSIndex/cmake-build-debug/diag2",
+                 geos_index_secondary_type="minmax")
+
+# timer
+
+start = time.time()
+
+# z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]}, geos_index_read_groups=True)
+
+print("secondary index direct read")
+z_selected_secondary_direct, uz_selected_secondary_direct = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+                            iteration=300, select={'z':[2.05e-6, 2.10e-6]}, geos_index_use_secondary=True, geos_index_direct_block_read=False)
+
+end = time.time()
+print("Time elapsed: ", end - start)
+
+# timer
+
+start = time.time()
+
+# z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]}, geos_index_read_groups=True)
+
+print("block read and use secondary index")
+z_selected_secondary_block, uz_selected_secondary_block = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+                            iteration=300, select={'z':[2.05e-6, 2.10e-6]}, geos_index_use_secondary=True, geos_index_direct_block_read=True)
+
+end = time.time()
+print("Time elapsed: ", end - start)
+
+# timer
+
+start = time.time()
+
+# z_selected_minmax, uz_selected_minmax = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+#                             iteration=300, select={'x':[5e-6, 10e-6], 'y':[5e-6, 10e-6], 'z':[15e-6, 30e-6], 'ux':[0.0, 0.01], 'uy':[0.0, 0.01], 'uz':[0.0, 0.01]}, geos_index_read_groups=True)
+
+print("read optimized and use secondary index")
+z_selected_secondary_group, uz_selected_secondary_group = geos_ts.get_particle( ['z', 'uz'], species='electrons',
+                            iteration=300, select={'z':[2.05e-6, 2.10e-6]}, geos_index_use_secondary=True, geos_index_direct_block_read=False, geos_index_read_groups=True)
+
+end = time.time()
+print("Time elapsed: ", end - start)
+
+
+
+# print(np.array_equal(np.sort(z_selected), np.sort(z_selected_original)))
+# print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_original)))
 
 print(np.array_equal(np.sort(z_selected), np.sort(z_selected_minmax)))
 print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_minmax)))
+
+print(np.array_equal(np.sort(z_selected), np.sort(z_selected_secondary_direct)))
+print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_secondary_direct)))
+
+print(np.array_equal(np.sort(z_selected), np.sort(z_selected_secondary_block)))
+print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_secondary_block)))
+
+print(np.array_equal(np.sort(z_selected), np.sort(z_selected_secondary_group)))
+print(np.array_equal(np.sort(uz_selected), np.sort(uz_selected_secondary_group)))
 
 
 # ts = OpenPMDTimeSeries("/data/gc/rocksdb-index/WarpX/build/bin/diags/diag1/", backend='openpmd-api', geos_index=True,

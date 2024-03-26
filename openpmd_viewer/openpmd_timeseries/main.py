@@ -449,6 +449,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 select_array = list()
                 # [fastest] group nearby blocks and read together
                 if geos_index_read_groups:
+                    self.read_strategy = list()
                     self.sorted_blocks = sorted(query_result[0].items(), key=lambda x: int(x[0]))
                     self.find_optimal_strategy(0, len(self.sorted_blocks) - 1, 0)
 
@@ -460,8 +461,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         for range_index in range(block_start_index, block_end_index + 1):
                             if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
                                 # for each block,
-                                for slice_start_index, slice_end_index in self.sorted_blocks[range_index][1].q.items():
-                                    select_array[-1][slice_start_index - self.sorted_blocks[block_start_index][1].start: slice_end_index - self.sorted_blocks[block_start_index][1].start] = True
+                                for slice_key, slice_obj in self.sorted_blocks[range_index][1].q.items():
+                                    select_array[-1][slice_obj.start - self.sorted_blocks[block_start_index][1].start: slice_obj.end - self.sorted_blocks[block_start_index][1].start] = True
                             else:
                                 # include the start and end
                                 select_array[-1][self.sorted_blocks[range_index][1].start - self.sorted_blocks[block_start_index][1].start: 
@@ -475,9 +476,10 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     # generate the mask for the data, if use secondary slice
                     if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
                         for block_start in list(query_result[0].keys()):
-                            select_array.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start + 1, dtype='bool'))
-                            for slice_start, slice_end in query_result[0][block_start].q.items():
-                                select_array[-1][slice_start - query_result[0][block_start].start: slice_end - query_result[0][block_start].start + 1] = True
+                            select_array.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start, dtype='bool'))
+                            for slice_key, slice_obj in query_result[0][block_start].q.items():
+                                select_array[-1][slice_obj.start - query_result[0][block_start].start: slice_obj.end - query_result[0][block_start].start] = True
+                        select_array = np.concatenate(select_array)
 
                 # [slowest] direct read secondary slice
                 # not geos_index_read_groups and not geos_index_direct_block_read
