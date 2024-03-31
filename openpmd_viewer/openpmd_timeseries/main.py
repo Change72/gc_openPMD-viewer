@@ -168,7 +168,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
         Returns:
             A tuple containing the optimal cost and the list of indices to cut the list at.
         """
-        if current_level > self.max_level:
+        if current_level > self.max_level or start == end:
             self.read_strategy.append((start, end))
             return 
 
@@ -523,7 +523,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
             else:
                 # todo particle tracing
                 pass
-        print()
+        # print()
         # Plotting
         if plot and len(var_list) in [1, 2]:
 

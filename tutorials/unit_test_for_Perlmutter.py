@@ -15,7 +15,7 @@ from openpmd_viewer import OpenPMDTimeSeries
 bp_file_path = os.environ.get('PSCRATCH')
 print(bp_file_path)
 
-ts = OpenPMDTimeSeries(bp_file_path, backend='openpmd-api')
+ts = OpenPMDTimeSeries(bp_file_path + '/openPMD', backend='openpmd-api')
 
 start = time.time()
 z_all = ts.get_particle(['z'], species='electrons', iteration=10000)

@@ -59,17 +59,17 @@ def single_query_test(
 
 # main
 def main():
-    bp_file_path = '/data/gc/rocksdb-index/WarpX/build/bin/diags/diag2/'
-    geos_index_path = "/data/gc/rocksdb-index/GEOSIndex/cmake-build-debug/diag2"
+    bp_file_path = '/pscratch/sd/c/cguo51/openPMD'
+    geos_index_path = "/pscratch/sd/c/cguo51/GEOSIndex/build/bp010000"
 
     species = "electrons"
-    iteration = 300
+    iteration = 10000
 
     # generate random query
     bg = BenchmarkGenerator(bp_file_path=bp_file_path, geos_index_path=geos_index_path)
 
     result = bg.generateRandomQuery(species=species, iteration=iteration, percentage_range=[0.01, 0.1, 10],
-                                    select_set={'x'}, expand_set={'x'}, threshold=0.001, repeat_num=3, learning_rate=0.99)
+                                    select_set={'x'}, expand_set={'x'}, threshold=0.1, repeat_num=3, learning_rate=0.99)
 
     target_array=["x"]
     query_time_dict = dict()
@@ -79,10 +79,12 @@ def main():
             print("query failed, skip this query.")
             continue
 
+        print()
+        print("===============================================")
         print(f"current query: {query}")
         
         query_time_dict[query["percentage"]] = list()
-
+        '''
         query_time_dict[query["percentage"]].append(single_query_test(
             bp_file_path=bp_file_path,
             geos_index=False,
@@ -102,7 +104,7 @@ def main():
 
             query_test_message="1. Original openPMD-viewer query"
         ))
-
+        '''
         query_time_dict[query["percentage"]].append(single_query_test(
             bp_file_path=bp_file_path,
             geos_index=True,
@@ -150,7 +152,7 @@ def main():
             geos_index_type="minmax",
             geos_index_storage_backend="file",
             geos_index_save_path=geos_index_path,
-            geos_index_secondary_type="none",
+            geos_index_secondary_type="minmax",
 
             target_array=target_array,
             species=species,
@@ -170,3 +172,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

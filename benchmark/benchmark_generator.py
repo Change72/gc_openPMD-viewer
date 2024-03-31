@@ -9,6 +9,8 @@ import copy
 import random
 import numpy as np
 
+import time
+
 from scipy import constants
 mass = 9.1093829099999999e-31
 momentum_constant = 1. / (mass * constants.c)
@@ -19,7 +21,7 @@ class BenchmarkGenerator:
         self.geos_ts = OpenPMDTimeSeries(bp_file_path, backend='openpmd-api', geos_index=True, geos_index_type="rtree",
                  geos_index_storage_backend="file", geos_index_save_path=geos_index_path)
 
-    def selectRandomEnvelop(self, postion_key, random_select_from_max_n=1, include_momentum=False):
+    def selectRandomEnvelop(self, postion_key, random_select_from_max_n=1, include_momentum=False, factor=0.1):
         metadata_result = self.geos_ts.query_geos_index.queryRTreeMetaData(postion_key)
         # max_env = self.geos_ts.query_geos_index.queryRTreeMetaDataRoot(postion_key)
         # build a map [length] -> metadata
@@ -39,9 +41,9 @@ class BenchmarkGenerator:
 
         envelope = dict()
         # assign the metadata to EntireEnvelope
-        envelope['x'] = [metadata.minx, metadata.maxx]
-        envelope['y'] = [metadata.miny, metadata.maxy]
-        envelope['z'] = [metadata.minz, metadata.maxz]
+        envelope['x'] = [metadata.minx * factor, metadata.maxx * factor]
+        envelope['y'] = [metadata.miny * factor, metadata.maxy * factor]
+        envelope['z'] = [metadata.minz * factor, metadata.maxz * factor]
 
         # max_envelope = dict()
         # max_envelope['x'] = [max_env.minx * 1.2, max_env.maxx * 1.2]
@@ -60,9 +62,9 @@ class BenchmarkGenerator:
             # match the start and end
             for momentum_metadata in momentum_result:
                 if momentum_metadata.start == metadata.start and momentum_metadata.end == metadata.end:
-                    envelope['ux'] = [momentum_metadata.minx * momentum_constant, momentum_metadata.maxx * momentum_constant]
-                    envelope['uy'] = [momentum_metadata.miny * momentum_constant, momentum_metadata.maxy * momentum_constant]
-                    envelope['uz'] = [momentum_metadata.minz * momentum_constant, momentum_metadata.maxz * momentum_constant]
+                    envelope['ux'] = [momentum_metadata.minx * momentum_constant * factor, momentum_metadata.maxx * momentum_constant * factor]
+                    envelope['uy'] = [momentum_metadata.miny * momentum_constant * factor, momentum_metadata.maxy * momentum_constant * factor]
+                    envelope['uz'] = [momentum_metadata.minz * momentum_constant * factor, momentum_metadata.maxz * momentum_constant * factor]
                     break
 
         return envelope
@@ -87,8 +89,9 @@ class BenchmarkGenerator:
                             repeat_num=1, learning_rate=1.0):
 
         # get the total particle number
-        z_all = self.geos_ts.get_particle(['z'], species=species, iteration=iteration, select={'z':[-np.inf, np.inf]}, geos_index_read_groups=True)
-
+        # z_all = self.geos_ts.get_particle(['z'], species=species, iteration=iteration, select={'z':[-np.inf, np.inf]}, geos_index_read_groups=True)
+        # z_all_length = len(z_all[0])
+        z_all_length = 7073519608
         select_position_key = self.key_generation_function(iteration, species, "position")
 
         result = list()
@@ -106,11 +109,14 @@ class BenchmarkGenerator:
                 init_envelope = self.selectRandomEnvelop(postion_key=select_position_key,
                                                          random_select_from_max_n=random_select_from_max_n,
                                                          include_momentum=include_momentum)
+                target_key = None
                 envelope_keys = list(init_envelope.keys())
                 for key in envelope_keys:
                     if key not in select_set:
                         # remove the key from the envelope
                         init_envelope.pop(key)
+                    else:
+                        target_key = key
 
                 i = 0
                 inside_one_block = False
@@ -120,12 +126,16 @@ class BenchmarkGenerator:
                 percentage_recursive_time = 0
                 # offset = random.uniform(0, 1)
                 while True:
-                    z_in_envelope = self.geos_ts.get_particle(['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=envelope)
+                    print(f"repeat_num {k}: loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
+                    start = time.time()
+                    z_in_envelope = self.geos_ts.get_particle(list(target_key) if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=envelope)
 
-                    current_percenage = float(len(z_in_envelope[0])) / len(z_all[0])
+                    current_percenage = float(len(z_in_envelope[0])) / z_all_length
+                    end = time.time()
+                    print("Time elapsed: ", end - start, f"current_percentage: {current_percenage * 100}%, envelope: {envelope}")
+                    print()
 
-                    print(f"repeat_num {k}: loop {i}: target_percentage: {percentage * 100}%", f"current_percentage: {current_percenage * 100}%, envelope: {envelope}")
-                    
+                    print("===========================================================================")
                     if last_percentage == current_percenage:
                         percentage_recursive_time += 1
                         if percentage_recursive_time > 100:
