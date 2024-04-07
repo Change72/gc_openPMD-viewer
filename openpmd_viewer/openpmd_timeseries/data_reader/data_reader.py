@@ -268,7 +268,7 @@ class DataReader( object ):
                 self.series, iteration, field, coord, slice_relative_position,
                 slice_across, m, theta, max_resolution_3d )
 
-    def read_species_data( self, iteration, species, record_comp, extensions, read_chunk_range=None):
+    def read_species_data( self, iteration, species, record_comp, extensions, read_chunk_range=None, skip_offset=False):
         """
         Extract a given species' record_comp
 
@@ -294,7 +294,7 @@ class DataReader( object ):
                     filename, iteration, species, record_comp, extensions )
         elif self.backend == 'openpmd-api':
             return io_reader.read_species_data(
-                    self.series, iteration, species, record_comp, extensions, read_chunk_range)
+                    self.series, iteration, species, record_comp, extensions, read_chunk_range, skip_offset)
 
     def get_grid_parameters(self, iteration, avail_fields, metadata ):
         """

@@ -8,14 +8,14 @@ Copyright 2020, openPMD-viewer contributors
 Authors: Axel Huebl
 License: 3-Clause-BSD-LBNL
 """
-
+import time
 import numpy as np
 from scipy import constants
 from .utilities import get_data
 
 
 def read_species_data(series, iteration, species_name, component_name,
-                      extensions, read_chunk_range=None):
+                      extensions, read_chunk_range=None, skip_offset=False):
     """
     Extract a given species' record_comp
 
@@ -70,7 +70,14 @@ def read_species_data(series, iteration, species_name, component_name,
         output_type = np.uint64
     else:
         output_type = np.float64
+
+    start = time.time()
     data = get_data_new( series, component, output_type=output_type, read_chunk_range=read_chunk_range)
+    end = time.time()
+    print(f"get target data: {component_name}. Time elapsed: ", end - start)
+
+    if skip_offset:
+        return data
 
     # For ED-PIC: if the data is weighted for a full macroparticle,
     # divide by the weight with the proper power
@@ -80,22 +87,36 @@ def read_species_data(series, iteration, species_name, component_name,
         weighting_power = record.get_attribute('weightingPower')
         if (macro_weighted == 1) and (weighting_power != 0):
             w_component = next(species['weighting'].items())[1]
-            w = get_data_new( w_component )
+            w = get_data_new(series, w_component, read_chunk_range=read_chunk_range)
             data *= w ** (-weighting_power)
 
     # - Return positions, with an offset
     if component_name in ['x', 'y', 'z']:
+        start = time.time()
         offset = get_data_new(series, species['positionOffset'][component_name], read_chunk_range=read_chunk_range)
+        end = time.time()
+        print(f"get position offset for read {component_name}. Time elapsed: ", end - start)
+
+        start = time.time()
         data += offset
+        end = time.time()
+        print("data += offset. Time elapsed: ", end - start)
+
     # - Return momentum in normalized units
     elif component_name in ['ux', 'uy', 'uz' ]:
         mass_component = next(species['mass'].items())[1]
+        start = time.time()
         m = get_data_new(series, mass_component, read_chunk_range=read_chunk_range)
+        end = time.time()
+        print(f"get mass read for {component_name}. Time elapsed: ", end - start)
+
+        start = time.time()
         # Normalize only if the particle mass is non-zero
         if np.all( m != 0 ):
             norm_factor = 1. / (m * constants.c)
             data *= norm_factor
-
+        end = time.time()
+        print("data *= norm_factor. Time elapsed: ", end - start)
 
     # Return the data
     return data
