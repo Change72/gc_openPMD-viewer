@@ -8,8 +8,17 @@ from openpmd_viewer import OpenPMDTimeSeries
 import copy
 import random
 import numpy as np
-
+import csv
 import time
+
+from memory_profiler import profile
+
+def write_csv(filename, data):
+    f = open(filename, 'a', newline='', encoding='utf-8')
+    Writer = csv.writer(f)
+    Writer.writerow(data)
+    f.close()
+    return
 
 from scipy import constants
 mass = 9.1093829099999999e-31
@@ -45,19 +54,10 @@ class BenchmarkGenerator:
         envelope['y'] = [metadata.miny * factor, metadata.maxy * factor]
         envelope['z'] = [metadata.minz * factor, metadata.maxz * factor]
 
-        # max_envelope = dict()
-        # max_envelope['x'] = [max_env.minx * 1.2, max_env.maxx * 1.2]
-        # max_envelope['y'] = [max_env.miny * 1.2, max_env.maxy * 1.2]
-        # max_envelope['z'] = [max_env.minz * 1.2, max_env.maxz * 1.2]
-
         if include_momentum:
             momentum_key = postion_key.replace("position", "momentum")
             momentum_result = self.geos_ts.query_geos_index.queryRTreeMetaData(momentum_key)
             max_momentum = self.geos_ts.query_geos_index.queryRTreeMetaDataRoot(momentum_key)
-
-            # max_envelope['ux'] = [max_momentum.minx * momentum_constant, max_momentum.maxx * momentum_constant]
-            # max_envelope['uy'] = [max_momentum.miny * momentum_constant, max_momentum.maxy * momentum_constant]
-            # max_envelope['uz'] = [max_momentum.minz * momentum_constant, max_momentum.maxz * momentum_constant]
 
             # match the start and end
             for momentum_metadata in momentum_result:
@@ -82,16 +82,22 @@ class BenchmarkGenerator:
     threshold: the threshold of the percentage
     expand_factor: the factor of the envelope expand
     '''
+    # @profile
     def generateRandomQuery(self, species, iteration,
-                            percentage_range, select_set, expand_set,
+                            percentage_range, select_set, expand_set=None,
                             envelope=None, random_select_from_max_n=1, 
                             threshold=0.001, 
-                            repeat_num=1, learning_rate=1.0):
+                            learning_rate=1.0, 
+                            total_particle_num=0,
+                            output_file="benchmark_result.csv"):
 
         # get the total particle number
-        # z_all = self.geos_ts.get_particle(['z'], species=species, iteration=iteration, select={'z':[-np.inf, np.inf]}, geos_index_read_groups=True)
-        # z_all_length = len(z_all[0])
-        z_all_length = 7073519608
+        if total_particle_num == 0:
+            z_all = self.geos_ts.get_particle(['z'], species=species, iteration=iteration, select={'z':[-np.inf, np.inf]}, geos_index_read_groups=True)
+            z_all_length = len(z_all[0])
+            del z_all
+        else:
+            z_all_length = total_particle_num
         select_position_key = self.key_generation_function(iteration, species, "position")
 
         result = list()
@@ -103,134 +109,117 @@ class BenchmarkGenerator:
             start *= step
         print(percentage_list)
 
+        random_expand_set = False
+        if not expand_set:
+            # random select one or multiple keys from the select_set
+            expand_set = random.sample(select_set, random.randint(int(len(select_set) / 2), len(select_set)))
+            random_expand_set = True
+
         for percentage in percentage_list:
-            for k in range(repeat_num):
+            if random_expand_set:
+                expand_set = random.sample(select_set, random.randint(int(len(select_set) / 2), len(select_set)))
+
+            if {'ux', 'uy', 'uz'}.intersection(select_set):
+                include_momentum = True
+            else:
                 include_momentum = False
-                init_envelope = self.selectRandomEnvelop(postion_key=select_position_key,
-                                                         random_select_from_max_n=random_select_from_max_n,
-                                                         include_momentum=include_momentum)
-                target_key = None
-                envelope_keys = list(init_envelope.keys())
-                for key in envelope_keys:
-                    if key not in select_set:
-                        # remove the key from the envelope
-                        init_envelope.pop(key)
-                    else:
-                        target_key = key
 
-                i = 0
-                inside_one_block = False
-                envelope = copy.deepcopy(init_envelope)
+            if len(select_set) == 6:
+                factor = 100
+            else:
+                factor = 0.1
 
-                last_percentage = -1
-                percentage_recursive_time = 0
-                # offset = random.uniform(0, 1)
-                while True:
-                    print(f"repeat_num {k}: loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
-                    start = time.time()
-                    z_in_envelope = self.geos_ts.get_particle(list(target_key) if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=envelope)
+            init_envelope = self.selectRandomEnvelop(
+                                postion_key=select_position_key,
+                                random_select_from_max_n=random_select_from_max_n,
+                                include_momentum=include_momentum,
+                                factor=factor)
 
-                    current_percenage = float(len(z_in_envelope[0])) / z_all_length
-                    end = time.time()
-                    print("Time elapsed: ", end - start, f"current_percentage: {current_percenage * 100}%, envelope: {envelope}")
-                    print()
+            target_key = None
+            envelope_keys = list(init_envelope.keys())
+            for key in envelope_keys:
+                if key not in select_set:
+                    # remove the key from the envelope
+                    init_envelope.pop(key)
+                else:
+                    target_key = key
 
-                    print("===========================================================================")
-                    if last_percentage == current_percenage:
-                        percentage_recursive_time += 1
-                        if percentage_recursive_time > 100:
-                            result.append({
-                                "code": 400,
-                                "message": "query generated failed due to the percentage_recursive_time > 100",
-                                "percentage": percentage,
-                                "iteration": iteration,
-                                "species": species,
-                                "select_position_key": select_position_key,
-                                "select_set": select_set,
-                                "expand_set": expand_set,
-                                "envelope": copy.deepcopy(envelope),
-                                "inside_one_block": inside_one_block
-                            })
-                            print("query generated failed due to the percentage_recursive_time > 100")
-                            break
-                    else:
-                        percentage_recursive_time = 0
-                        last_percentage = current_percenage
+            i = 0
+            inside_one_block = False
+            envelope = copy.deepcopy(init_envelope)
 
-                    # if current_percenage < percentage:
-                    #     expand_flag = True
-                    # else:
-                    #     expand_flag = False
-                    #     if i == 0:
-                    #         inside_one_block = True
+            last_percentage = -1
+            percentage_recursive_time = 0
+            # offset = random.uniform(0, 1)
+            while True:
+                print(f"loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
+                start = time.time()
+                z_in_envelope = self.geos_ts.get_particle([target_key] if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=envelope)
 
-                    diff_percentage = percentage - current_percenage
-
-                    if abs(diff_percentage) < threshold * percentage:
-                        result.append({
-                            "code": 200,
-                            "message": "query generated success",
-                            "percentage": percentage,
-                            "iteration": iteration,
-                            "species": species,
-                            "select_position_key": select_position_key,
-                            "select_set": select_set,
-                            "expand_set": expand_set,
-                            "envelope": copy.deepcopy(envelope),
-                            "inside_one_block": inside_one_block,
-                            "diff_percentage": diff_percentage
-                        })
+                current_percenage = float(len(z_in_envelope[0])) / z_all_length
+                end = time.time()
+                print("Time elapsed: ", end - start, f"current_percentage: {current_percenage * 100}%, envelope: {envelope}")
+                print()
+                del z_in_envelope
+                print("===========================================================================")
+                if last_percentage == current_percenage:
+                    percentage_recursive_time += 1
+                    if percentage_recursive_time > 100 or i > 1000:
+                        # result.append({
+                        #     "code": 400,
+                        #     "message": "query generated failed due to the percentage_recursive_time > 100",
+                        #     "percentage": percentage,
+                        #     "iteration": iteration,
+                        #     "species": species,
+                        #     "select_position_key": select_position_key,
+                        #     "select_set": select_set,
+                        #     "expand_set": expand_set,
+                        #     "envelope": copy.deepcopy(envelope),
+                        #     "inside_one_block": inside_one_block
+                        # })
+                        print("query generated failed due to the percentage_recursive_time > 100")
                         break
+                else:
+                    percentage_recursive_time = 0
+                    last_percentage = current_percenage
 
-                    # TODO expand the envelope, for now, we just * 1.1 or * 0.9, it cannot change the +/- direction
-                    # so tha maximum range can only include 50% of the total particle
+                diff_percentage = percentage - current_percenage
 
-                    # if expand_flag:
-                    #     for key in expand_set:
-                    #         if isinstance( expand_factor, list ):
-                    #             envelope[key][0] *= expand_factor[0] if envelope[key][0] > 0 else expand_factor[1]
-                    #             envelope[key][1] *= expand_factor[1] if envelope[key][1] > 0 else expand_factor[0]
-                    #         elif isinstance( expand_factor, dict ):
-                    #             envelope[key][0] *= expand_factor[key][0] if envelope[key][0] > 0 else expand_factor[key][1]
-                    #             envelope[key][1] *= expand_factor[key][1] if envelope[key][1] > 0 else expand_factor[key][0]
-                    # else:
-                    #     for key in expand_set:
-                    #         if isinstance( expand_factor, list ):
-                    #             envelope[key][0] *= expand_factor[1] if envelope[key][0] > 0 else expand_factor[0]
-                    #             envelope[key][1] *= expand_factor[0] if envelope[key][1] > 0 else expand_factor[1]
-                    #         elif isinstance( expand_factor, dict ):
-                    #             envelope[key][0] *= expand_factor[key][1] if envelope[key][0] > 0 else expand_factor[key][0]
-                    #             envelope[key][1] *= expand_factor[key][0] if envelope[key][1] > 0 else expand_factor[key][1]
+                if abs(diff_percentage) < threshold * percentage:
+                    # result.append({
+                    #     "code": 200,
+                    #     "message": "query generated success",
+                    #     "percentage": percentage,
+                    #     "iteration": iteration,
+                    #     "species": species,
+                    #     "select_position_key": select_position_key,
+                    #     "select_set": select_set,
+                    #     "expand_set": expand_set,
+                    #     "envelope": copy.deepcopy(envelope),
+                    #     "inside_one_block": inside_one_block,
+                    #     "diff_percentage": diff_percentage
+                    # })
+
+                    write_csv(output_file, [percentage, current_percenage, iteration, species, str(select_set), str(expand_set), envelope])
+                    break
+
+                for key in expand_set:
+                    mid = (envelope[key][0] + envelope[key][1]) / 2
+                    # random
+                    # mid = random.uniform(envelope[key][0], envelope[key][1])
+                    length = envelope[key][1] - envelope[key][0]
+                    if diff_percentage > 0: # expand
+                        new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
+                    else: # shrink
+                        new_length = length * (1 + diff_percentage * learning_rate - random.uniform(0, 0.1))
                     
-                    # learning_rate *= learning_rate
+                    envelope[key][0] = mid - new_length / 2
+                    envelope[key][1] = mid + new_length / 2
 
-                    for key in expand_set:
-                        # mid = (envelope[key][0] + envelope[key][1]) / 2
-                        # random
-                        mid = random.uniform(envelope[key][0], envelope[key][1])
-                        length = envelope[key][1] - envelope[key][0]
-                        if diff_percentage > 0: # expand
-                            new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
-                        else: # shrink
-                            new_length = length * (1 + diff_percentage * learning_rate - random.uniform(0, 0.1))
-                        
-                        envelope[key][0] = mid - new_length / 2
-                        envelope[key][1] = mid + new_length / 2
-                        #     envelope[key][0] *= expand_factor[0] if envelope[key][0] > 0 else expand_factor[1]
-                        #     envelope[key][1] *= expand_factor[1] if envelope[key][1] > 0 else expand_factor[0]
-                        # else: # shrink
-                        #     envelope[key][0] *= expand_factor[1] if envelope[key][0] > 0 else expand_factor[0]
-                        #     envelope[key][1] *= expand_factor[0] if envelope[key][1] > 0 else expand_factor[1]
-                        # if envelope[key][0] > 0:
-                        #     envelope[key][0] -= (diff_percentage + random.uniform(-0.1, 0.1)) * max_envelope[key][0] * learning_rate
-                        # else:
-                        #     envelope[key][0] += diff_percentage * max_envelope[key][0] * learning_rate
+                i += 1
 
-                        # if envelope[key][1] > 0:
-                        #     envelope[key][1] += diff_percentage * max_envelope[key][1] * learning_rate
-                        # else:
-                        #     envelope[key][1] -= diff_percentage * max_envelope[key][1] * learning_rate
+            del envelope
+            del init_envelope
 
-                    i += 1
         return result
 
