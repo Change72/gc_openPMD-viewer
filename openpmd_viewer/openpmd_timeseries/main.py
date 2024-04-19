@@ -463,6 +463,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 if len(query_result[0]) == 0:
                     return list(), list()
                 end = time.time()
+
+                print("The size of the query result: ", len(query_result[0]))
                 print("remove duplication. Time elapsed: ", end - start)
 
                 # read data based on query_result[0]
@@ -483,7 +485,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     print("find optimal read solution. Time elapsed: ", end - start)
 
                     for block_start_index, block_end_index in self.read_strategy:
-                        print(block_start_index, block_end_index)
+                        # print(block_start_index, block_end_index)
                         self.read_chunk_range.append((self.sorted_blocks[block_start_index][1].start, self.sorted_blocks[block_end_index][1].end, None))
 
                     if not select_all_flag:

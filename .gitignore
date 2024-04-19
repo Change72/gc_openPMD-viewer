@@ -11,4 +11,4 @@ __pycache__
 tutorials/example-2d
 example-2d
 .idea/*
-
+log/

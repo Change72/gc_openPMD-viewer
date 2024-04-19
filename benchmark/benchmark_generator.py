@@ -103,10 +103,13 @@ class BenchmarkGenerator:
         result = list()
         # generate the percentage list
         percentage_list = list()
-        start, end, step = percentage_range
-        while start <= end:
-            percentage_list.append(start)
-            start *= step
+        if len(percentage_range) != 3:
+            percentage_list = percentage_range
+        else:
+            start, end, step = percentage_range
+            while start <= end:
+                percentage_list.append(start)
+                start *= step
         print(percentage_list)
 
         random_expand_set = False
