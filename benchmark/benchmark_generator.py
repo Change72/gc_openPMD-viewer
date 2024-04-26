@@ -21,8 +21,6 @@ def write_csv(filename, data):
     return
 
 from scipy import constants
-mass = 9.1093829099999999e-31
-momentum_constant = 1. / (mass * constants.c)
 
 class BenchmarkGenerator:
     def __init__(self, bp_file_path, geos_index_path):
@@ -30,7 +28,7 @@ class BenchmarkGenerator:
         self.geos_ts = OpenPMDTimeSeries(bp_file_path, backend='openpmd-api', geos_index=True, geos_index_type="rtree",
                  geos_index_storage_backend="file", geos_index_save_path=geos_index_path)
 
-    def selectRandomEnvelop(self, postion_key, random_select_from_max_n=1, include_momentum=False, factor=0.1):
+    def selectRandomEnvelop(self, species, postion_key, random_select_from_max_n=1, include_momentum=False, factor=0.1):
         metadata_result = self.geos_ts.query_geos_index.queryRTreeMetaData(postion_key)
         # max_env = self.geos_ts.query_geos_index.queryRTreeMetaDataRoot(postion_key)
         # build a map [length] -> metadata
@@ -55,6 +53,12 @@ class BenchmarkGenerator:
         envelope['z'] = [metadata.minz * factor, metadata.maxz * factor]
 
         if include_momentum:
+            if species == "electron":
+                mass = 9.1093829099999999e-31
+            elif species == "hydrogen":
+                mass = 1.6726219236900000e-27
+            momentum_constant = 1. / (mass * constants.c)
+
             momentum_key = postion_key.replace("position", "momentum")
             momentum_result = self.geos_ts.query_geos_index.queryRTreeMetaData(momentum_key)
             max_momentum = self.geos_ts.query_geos_index.queryRTreeMetaDataRoot(momentum_key)
@@ -133,6 +137,7 @@ class BenchmarkGenerator:
                 factor = 0.1
 
             init_envelope = self.selectRandomEnvelop(
+                                species=species,
                                 postion_key=select_position_key,
                                 random_select_from_max_n=random_select_from_max_n,
                                 include_momentum=include_momentum,

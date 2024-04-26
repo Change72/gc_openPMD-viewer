@@ -386,7 +386,11 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     'uz': ['momentum', 'z'],
                     'w': ['weighting', None]}
 
-                mass = 9.1093829099999999e-31
+                if species == "electron":
+                    mass = 9.1093829099999999e-31
+                elif species == "hydrogen":
+                    mass = 1.6726219236900000e-27
+
                 momentum_constant = 1. / (mass * constants.c)
 
                 # query_result is list(std::map<std::string, QueryBlockResult>), block_start as the key
