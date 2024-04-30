@@ -20,15 +20,18 @@ for ((i=1; i<=10000; i++)); do
         --bpfile $bpfile \
         --index $index \
         --iteration $iteration \
-        --select_set "x,y,z,ux,uy,uz" \
+	    --species "hydrogen" \
+        --select_set "x,y,z;ux,uy,uz;x,y,z,ux,uy,uz" \
         --threshold 0.01 \
 	    --percentage_range 0.0001 \
-        --output_file "results/10g_iteration_500/benchmark_result_00001_to_01.csv" \
+        --total_particle_num 13122018434 \
+        --output_file "results/500g_iteration_10000/benchmark_result_00001_to_01.csv" \
         > "log/benchmark_result_$(printf '%05d' $i).log" \
         2>&1 &
+    sleep 3600
     # if i / 20 == 0, Sleep for 3600 seconds
-    if [ $((i % 60)) -eq 0 ]; then
-        sleep 150
-    fi
+    # if [ $((i % 2)) -eq 0 ]; then
+    #     sleep 1800
+    # fi
 done
 

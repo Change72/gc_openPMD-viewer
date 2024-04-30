@@ -11,7 +11,7 @@ import numpy as np
 import csv
 import time
 
-from memory_profiler import profile
+# from memory_profiler import profile
 
 def write_csv(filename, data):
     f = open(filename, 'a', newline='', encoding='utf-8')
@@ -118,13 +118,15 @@ class BenchmarkGenerator:
 
         random_expand_set = False
         if not expand_set:
-            # random select one or multiple keys from the select_set
-            expand_set = random.sample(select_set, random.randint(int(len(select_set) / 2), len(select_set)))
             random_expand_set = True
 
         for percentage in percentage_list:
             if random_expand_set:
-                expand_set = random.sample(select_set, random.randint(int(len(select_set) / 2), len(select_set)))
+                if len(select_set) == 1:
+                    expand_set = select_set
+                else:
+                    expand_set = random.sample(select_set, random.randint(int(len(select_set) / 2) + 1, len(select_set)))
+            print(f"percentage: {percentage}, select_set: {select_set}, expand_set: {expand_set}")
 
             if {'ux', 'uy', 'uz'}.intersection(select_set):
                 include_momentum = True
@@ -132,7 +134,9 @@ class BenchmarkGenerator:
                 include_momentum = False
 
             if len(select_set) == 6:
-                factor = 100
+                factor = 1000000
+            elif len(select_set) == 3:
+                factor = 1000
             else:
                 factor = 0.1
 
@@ -162,15 +166,16 @@ class BenchmarkGenerator:
             while True:
                 print(f"loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
                 start = time.time()
-                z_in_envelope = self.geos_ts.get_particle([target_key] if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=envelope)
-
-                current_percenage = float(len(z_in_envelope[0])) / z_all_length
+                select_envelope = copy.deepcopy(envelope)
+                z_in_envelope = self.geos_ts.get_particle([target_key] if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True)
+                del select_envelope
+                
+                current_percentage = float(len(z_in_envelope[0])) / z_all_length
                 end = time.time()
-                print("Time elapsed: ", end - start, f"current_percentage: {current_percenage * 100}%, envelope: {envelope}")
+                print("Time elapsed: ", end - start, f"current_percentage: {current_percentage * 100}%, envelope: {envelope}")
                 print()
-                del z_in_envelope
                 print("===========================================================================")
-                if last_percentage == current_percenage:
+                if last_percentage == current_percentage:
                     percentage_recursive_time += 1
                     if percentage_recursive_time > 100 or i > 1000:
                         # result.append({
@@ -189,42 +194,93 @@ class BenchmarkGenerator:
                         break
                 else:
                     percentage_recursive_time = 0
-                    last_percentage = current_percenage
+                    last_percentage = current_percentage
 
-                diff_percentage = percentage - current_percenage
+                diff_percentage = percentage - current_percentage
 
                 if abs(diff_percentage) < threshold * percentage:
-                    # result.append({
-                    #     "code": 200,
-                    #     "message": "query generated success",
-                    #     "percentage": percentage,
-                    #     "iteration": iteration,
-                    #     "species": species,
-                    #     "select_position_key": select_position_key,
-                    #     "select_set": select_set,
-                    #     "expand_set": expand_set,
-                    #     "envelope": copy.deepcopy(envelope),
-                    #     "inside_one_block": inside_one_block,
-                    #     "diff_percentage": diff_percentage
-                    # })
-
-                    write_csv(output_file, [percentage, current_percenage, iteration, species, str(select_set), str(expand_set), envelope])
+                    write_csv(output_file, [percentage, current_percentage, iteration, species, str(select_set), str(expand_set), envelope])
                     break
 
-                for key in expand_set:
-                    mid = (envelope[key][0] + envelope[key][1]) / 2
-                    # random
-                    # mid = random.uniform(envelope[key][0], envelope[key][1])
-                    length = envelope[key][1] - envelope[key][0]
-                    if diff_percentage > 0: # expand
-                        new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
-                    else: # shrink
-                        new_length = length * (1 + diff_percentage * learning_rate - random.uniform(0, 0.1))
-                    
-                    envelope[key][0] = mid - new_length / 2
-                    envelope[key][1] = mid + new_length / 2
-
                 i += 1
+                if diff_percentage > 0:
+                    for key in expand_set:
+                        mid = (envelope[key][0] + envelope[key][1]) / 2
+                        # random
+                        # mid = random.uniform(envelope[key][0], envelope[key][1])
+                        length = envelope[key][1] - envelope[key][0]
+                        if current_percentage == 0.0:
+                            new_length = length * 10
+                        else:
+                            new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
+                        envelope[key][0] = mid - new_length / 2
+                        envelope[key][1] = mid + new_length / 2
+                    continue
+
+                else:
+                    boundary = copy.deepcopy(envelope)
+                    k = 0
+                    while True:
+                        select_array = np.ones(len(z_in_envelope[0]), dtype='bool')
+
+                        for key in expand_set:
+                            mid = (envelope[key][0] + envelope[key][1]) / 2
+                            # random
+                            # mid = random.uniform(envelope[key][0], envelope[key][1])
+                            length = envelope[key][1] - envelope[key][0]
+                            if diff_percentage > 0:
+                                if current_percentage == 0.0:
+                                    new_length = length * 3
+                                else:
+                                    new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
+                            else:
+                                new_length = length * (1 + diff_percentage * learning_rate - random.uniform(0, 0.1))
+                            envelope[key][0] = max(mid - new_length / 2, boundary[key][0])
+                            envelope[key][1] = min(mid + new_length / 2, boundary[key][1])
+
+                            if key in ['ux', 'uy', 'uz']:
+                                if species == "electron":
+                                    mass = 9.1093829099999999e-31
+                                elif species == "hydrogen":
+                                    mass = 1.6726219236900000e-27
+                                momentum_constant = 1. / (mass * constants.c)
+
+                                select_array = np.logical_and(
+                                                select_array,
+                                                z_in_envelope[0] > (envelope[key][0] / momentum_constant))
+
+                                select_array = np.logical_and(
+                                                select_array,
+                                                z_in_envelope[0] < (envelope[key][1] / momentum_constant))
+                            else:
+                                select_array = np.logical_and(
+                                                select_array,
+                                                z_in_envelope[0] > envelope[key][0])
+
+                                select_array = np.logical_and(
+                                                select_array,
+                                                z_in_envelope[0] < envelope[key][1])
+
+                            z_new = [z_in_envelope[0][select_array]]
+
+                        current_percentage = float(len(z_new[0])) / z_all_length
+                        diff_percentage = percentage - current_percentage
+
+                        if current_percentage / percentage > 100:
+                            z_in_envelope = z_new
+
+                        print(f"loop {i}, k: {k}, current_percentage: {current_percentage * 100}%, length of z_in_envelope, {len(z_in_envelope[0])} envelope: {envelope}")
+
+                        if abs(diff_percentage) < threshold * percentage:
+                            write_csv(output_file, [percentage, current_percentage, iteration, species, str(select_set), str(expand_set), envelope])
+                            break
+
+                        k += 1
+                        if k > 1000:
+                            break
+
+                del z_in_envelope
+                break
 
             del envelope
             del init_envelope
