@@ -386,7 +386,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     'uz': ['momentum', 'z'],
                     'w': ['weighting', None]}
 
-                if species == "electron":
+                if species == "electrons":
                     mass = 9.1093829099999999e-31
                 elif species == "hydrogen":
                     mass = 1.6726219236900000e-27

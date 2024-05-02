@@ -28,7 +28,7 @@ class BenchmarkGenerator:
         self.geos_ts = OpenPMDTimeSeries(bp_file_path, backend='openpmd-api', geos_index=True, geos_index_type="rtree",
                  geos_index_storage_backend="file", geos_index_save_path=geos_index_path)
 
-    def selectRandomEnvelop(self, species, postion_key, random_select_from_max_n=1, include_momentum=False, factor=0.1):
+    def selectRandomEnvelop(self, species, postion_key, random_select_from_max_n=1, include_momentum=False, factor=1):
         metadata_result = self.geos_ts.query_geos_index.queryRTreeMetaData(postion_key)
         # max_env = self.geos_ts.query_geos_index.queryRTreeMetaDataRoot(postion_key)
         # build a map [length] -> metadata
@@ -53,7 +53,7 @@ class BenchmarkGenerator:
         envelope['z'] = [metadata.minz * factor, metadata.maxz * factor]
 
         if include_momentum:
-            if species == "electron":
+            if species == "electrons":
                 mass = 9.1093829099999999e-31
             elif species == "hydrogen":
                 mass = 1.6726219236900000e-27
@@ -133,19 +133,12 @@ class BenchmarkGenerator:
             else:
                 include_momentum = False
 
-            if len(select_set) == 6:
-                factor = 1000000
-            elif len(select_set) == 3:
-                factor = 1000
-            else:
-                factor = 0.1
-
             init_envelope = self.selectRandomEnvelop(
                                 species=species,
                                 postion_key=select_position_key,
                                 random_select_from_max_n=random_select_from_max_n,
                                 include_momentum=include_momentum,
-                                factor=factor)
+                                )
 
             target_key = None
             envelope_keys = list(init_envelope.keys())
@@ -163,11 +156,12 @@ class BenchmarkGenerator:
             last_percentage = -1
             percentage_recursive_time = 0
             # offset = random.uniform(0, 1)
+            select_list = list(select_set)
             while True:
                 print(f"loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
                 start = time.time()
                 select_envelope = copy.deepcopy(envelope)
-                z_in_envelope = self.geos_ts.get_particle([target_key] if target_key else ['z'], species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True)
+                z_in_envelope = self.geos_ts.get_particle(select_list, species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True)
                 del select_envelope
                 
                 current_percentage = float(len(z_in_envelope[0])) / z_all_length
@@ -224,8 +218,12 @@ class BenchmarkGenerator:
                         select_array = np.ones(len(z_in_envelope[0]), dtype='bool')
 
                         for key in expand_set:
-                            mid = (envelope[key][0] + envelope[key][1]) / 2
+                            if random.uniform(0, 1) > 0.8:
+                                continue
+                            # mid = (envelope[key][0] + envelope[key][1]) / 2
                             # random
+                            random_middle = random.uniform(0.4, 0.6)  # Generate a random percentage between 40% and 60%
+                            mid = envelope[key][0] + (envelope[key][1] - envelope[key][0]) * random_middle
                             # mid = random.uniform(envelope[key][0], envelope[key][1])
                             length = envelope[key][1] - envelope[key][0]
                             if diff_percentage > 0:
@@ -235,11 +233,17 @@ class BenchmarkGenerator:
                                     new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
                             else:
                                 new_length = length * (1 + diff_percentage * learning_rate - random.uniform(0, 0.1))
+                                if new_length < 0:
+                                    new_length = length * 0.9
+                                new_length = max(new_length, length * 0.7)
                             envelope[key][0] = max(mid - new_length / 2, boundary[key][0])
                             envelope[key][1] = min(mid + new_length / 2, boundary[key][1])
 
+                            # key index in select_list
+                            key_index = select_list.index(key)
+
                             if key in ['ux', 'uy', 'uz']:
-                                if species == "electron":
+                                if species == "electrons":
                                     mass = 9.1093829099999999e-31
                                 elif species == "hydrogen":
                                     mass = 1.6726219236900000e-27
@@ -247,21 +251,21 @@ class BenchmarkGenerator:
 
                                 select_array = np.logical_and(
                                                 select_array,
-                                                z_in_envelope[0] > (envelope[key][0] / momentum_constant))
+                                                z_in_envelope[key_index] > (envelope[key][0] / momentum_constant))
 
                                 select_array = np.logical_and(
                                                 select_array,
-                                                z_in_envelope[0] < (envelope[key][1] / momentum_constant))
+                                                z_in_envelope[key_index] < (envelope[key][1] / momentum_constant))
                             else:
                                 select_array = np.logical_and(
                                                 select_array,
-                                                z_in_envelope[0] > envelope[key][0])
+                                                z_in_envelope[key_index] > envelope[key][0])
 
                                 select_array = np.logical_and(
                                                 select_array,
-                                                z_in_envelope[0] < envelope[key][1])
+                                                z_in_envelope[key_index] < envelope[key][1])
 
-                            z_new = [z_in_envelope[0][select_array]]
+                        z_new = [z_in_envelope[i][select_array] for i in range(len(z_in_envelope))]
 
                         current_percentage = float(len(z_new[0])) / z_all_length
                         diff_percentage = percentage - current_percentage
