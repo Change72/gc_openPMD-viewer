@@ -212,6 +212,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
             geos_index_direct_block_read = True,
             geos_index_read_groups = False,
             skip_offset=False,
+            limit_block_num=None,
             **kw):
         """
         Extract a list of particle variables an openPMD file.
@@ -470,6 +471,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 print("The size of the query result: ", len(query_result[0]))
                 print("remove duplication. Time elapsed: ", end - start)
+
+                if limit_block_num and len(query_result[0]) > limit_block_num:
+                    return f"The number of blocks is {len(query_result[0])}, please reduce the range of the selection"
 
                 # read data based on query_result[0]
                 self.read_chunk_range = list()

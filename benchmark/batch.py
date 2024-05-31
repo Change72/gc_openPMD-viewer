@@ -22,6 +22,7 @@ if __name__ == "__main__":
     parser.add_argument('--total_particle_num', type=str, help="total particle number", default=0)
     parser.add_argument('--learning_rate', type=str, help="learning rate", default=0.99)
     parser.add_argument('--threshold', type=str, help="threshold", default=0.1)
+    parser.add_argument('--limit_block_num', type=str, help="limit block num", default=0)
     parser.add_argument('--output_file', type=str, help="output file path", default="benchmark_result.csv")
 
     args = parser.parse_args()
@@ -34,10 +35,14 @@ if __name__ == "__main__":
     total_particle_num = int(args.total_particle_num)
     learning_rate = float(args.learning_rate)
     threshold = float(args.threshold)
+    limit_block_num = int(args.limit_block_num)
     output_file = args.output_file
 
     if not bp_file_path or not index_path:
         raise ValueError("bpfile and index are required")
+
+    if limit_block_num == 0:
+        limit_block_num = None
 
     bg = BenchmarkGenerator(bp_file_path=bp_file_path, geos_index_path=index_path)
     # select_set_list = [{'x'}, {'x', 'y', 'z'}, {'ux'}, {'ux', 'uy', 'uz'}, {'x', 'y', 'z', 'ux', 'uy', 'uz'}]
@@ -47,7 +52,7 @@ if __name__ == "__main__":
         result = bg.generateRandomQuery(species=species, iteration=iteration, percentage_range=percentage_range,
                                         select_set=select_set, threshold=threshold, 
                                         learning_rate=learning_rate, total_particle_num=total_particle_num,
-                                        output_file=output_file)
+                                        limit_block_num=limit_block_num, output_file=output_file)
 
 
 

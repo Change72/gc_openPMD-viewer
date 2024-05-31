@@ -9,6 +9,7 @@ import copy
 import random
 import numpy as np
 import csv
+import re
 import time
 
 # from memory_profiler import profile
@@ -93,6 +94,7 @@ class BenchmarkGenerator:
                             threshold=0.001, 
                             learning_rate=1.0, 
                             total_particle_num=0,
+                            limit_block_num=500,
                             output_file="benchmark_result.csv"):
 
         # get the total particle number
@@ -157,12 +159,49 @@ class BenchmarkGenerator:
             percentage_recursive_time = 0
             # offset = random.uniform(0, 1)
             select_list = list(select_set)
+            first_run = True
             while True:
                 print(f"loop {i}: target_percentage: {percentage * 100}%, envelope: {envelope}")
                 start = time.time()
-                select_envelope = copy.deepcopy(envelope)
-                z_in_envelope = self.geos_ts.get_particle(select_list, species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True)
-                del select_envelope
+                last_block_num = 0
+                same_block_times = 0
+                if first_run:
+                    first_run = False
+                else:
+                    limit_block_num = None
+
+                for k in range(20):
+                    select_envelope = copy.deepcopy(envelope)
+                    z_in_envelope = self.geos_ts.get_particle(select_list, species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True, limit_block_num=limit_block_num)
+                    if type(z_in_envelope) == str:
+                        # f"The number of blocks is {query_result[0]}, please reduce the range of the selection"
+                        # use regex to get the number of blocks
+                        block_num = re.findall(r"The number of blocks is (.*?),", z_in_envelope)[0]
+                        print(k, block_num, z_in_envelope, envelope)
+                        if block_num == last_block_num:
+                            same_block_times += 1
+                            if same_block_times > 10:
+                                break
+                        else:
+                            last_block_num = block_num
+                            same_block_times = 0
+                        # reduce the range of the envelope
+                        for key in envelope:
+                            mid = (envelope[key][0] + envelope[key][1]) / 2
+                            length = envelope[key][1] - envelope[key][0]
+                            new_length = length * (1 - random.uniform(0, 0.1))
+                            envelope[key][0] = mid - (new_length / 2)
+                            envelope[key][1] = mid + (new_length / 2)
+                            # print(f"key: {key}, mid: {mid}, length: {length}, new_length: {new_length}, envelope: {select_envelope}")
+                    if type(z_in_envelope) == list or type(z_in_envelope) == tuple:
+                        print(type(z_in_envelope), len(z_in_envelope))
+                        break
+                    del select_envelope
+                
+                if type(z_in_envelope) == str:
+                    select_envelope = copy.deepcopy(envelope)
+                    z_in_envelope = self.geos_ts.get_particle(select_list, species=species, iteration=iteration, geos_index_read_groups=True, select=select_envelope, skip_offset=True)
+                    del select_envelope
                 
                 current_percentage = float(len(z_in_envelope[0])) / z_all_length
                 end = time.time()
@@ -204,7 +243,7 @@ class BenchmarkGenerator:
                         # mid = random.uniform(envelope[key][0], envelope[key][1])
                         length = envelope[key][1] - envelope[key][0]
                         if current_percentage == 0.0:
-                            new_length = length * 10
+                            new_length = length * 3
                         else:
                             new_length = length * (1 + diff_percentage * learning_rate + random.uniform(0, 0.1))
                         envelope[key][0] = mid - new_length / 2
