@@ -32,7 +32,7 @@ def extract_data_from_log(log_file):
     get_support_data_time_elapsed = []
     data_calculation_time_elapsed = []
     data_apply_select_time_elapsed = []
-    apply_particle_level_select_array_time_elapsed = None
+    apply_particle_level_select_array_time_elapsed = []
     total_time_elapsed = None
     data_size = None
 
@@ -143,7 +143,7 @@ def extract_data_from_log(log_file):
                 if regex_result:
                     data_calculation_time_elapsed.append(float(regex_result[0]))
 
-            elif 'data apply index select array' in line:
+            elif 'calculate particle level select array' in line:
                 # data apply index select array. Time elapsed:  0.04328322410583496
                 regex_result = re.compile(r'Time elapsed: (.*)').findall(line)
                 if regex_result:
@@ -153,7 +153,7 @@ def extract_data_from_log(log_file):
                 # apply particle level select array. Time elapsed:  76.21706938743591
                 regex_result = re.compile(r'Time elapsed: (.*)').findall(line)
                 if regex_result:
-                    apply_particle_level_select_array_time_elapsed = float(regex_result[0])
+                    apply_particle_level_select_array_time_elapsed.append(float(regex_result[0]))
 
             elif 'Total Time' in line:
                 # Total Time: 149.23700332641602, data size: 4163
@@ -183,7 +183,7 @@ def extract_data_from_log(log_file):
         'get_support_data_time_elapsed': sum(get_support_data_time_elapsed),
         'data_calculation_time_elapsed': sum(data_calculation_time_elapsed),
         'data_apply_select_time_elapsed': sum(data_apply_select_time_elapsed),
-        'apply_particle_level_select_array_time_elapsed': apply_particle_level_select_array_time_elapsed - (sum(get_target_data_time_elapsed) / 2) - (sum(get_support_data_time_elapsed) / 2) - (sum(data_calculation_time_elapsed) / 2) if test_type == 1 else apply_particle_level_select_array_time_elapsed,
+        'apply_particle_level_select_array_time_elapsed': sum(apply_particle_level_select_array_time_elapsed),
         'total_time_elapsed': total_time_elapsed,
 
         'query_result_size': query_result_size,

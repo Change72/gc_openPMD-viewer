@@ -10,6 +10,7 @@ License: 3-Clause-BSD-LBNL
 import time
 import geosindex
 import numpy as np
+import pandas as pd
 from scipy import constants
 from tqdm import tqdm
 
@@ -157,6 +158,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
     def result_to_tuple(self, result_obj):
         return result_obj[1].start, result_obj[1].end, None
 
+    def batch_to_tuple(self, result_obj):
+        return result_obj[0], result_obj[0] + result_obj[1], None
+
     def find_optimal_strategy(self, start, end, current_level):
         """
         Finds the optimal strategy for reading a list of one-dimensional points.
@@ -213,6 +217,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
             geos_index_read_groups = False,
             skip_offset=False,
             limit_block_num=None,
+            limit_memory_usage=None,
+            block_meta_path=None,
+            memory_usage_factor=1.0,
             **kw):
         """
         Extract a list of particle variables an openPMD file.
@@ -359,21 +366,98 @@ class OpenPMDTimeSeries(InteractiveViewer):
         # Extract the list of particle quantities
         data_list = []
         if not self.geos_index or not select:
-            for quantity in var_list:
-                data_list.append( self.data_reader.read_species_data(
-                    iteration, species, quantity, self.extensions))
+            if limit_memory_usage is not None:
+                # limit_memory_usage = 64GB
+                # Determine the number of particles
+                max_N = int(int(limit_memory_usage.replace("GB", "")) * 1024**3 / 8 / memory_usage_factor)
+                # read block meta info
+                block_meta_df = pd.read_csv(block_meta_path, sep=',', header=None, names=['iteration', 'block_start', 'block_count'])
+                block_meta_df = block_meta_df[block_meta_df['iteration'] == iteration]
+                block_meta_df = block_meta_df.sort_values(by=['block_start'])
+                # remove duplicate
+                block_meta_df = block_meta_df.drop_duplicates(subset=['block_start'])
+                block_meta_df = block_meta_df.reset_index(drop=True)
 
-            start = time.time()
-            # Apply selection if needed
-            if isinstance( select, dict ):
-                data_list = apply_selection( iteration, self.data_reader,
-                    data_list, select, species, self.extensions)
-            elif isinstance( select, ParticleTracker ):
-                data_list = select.extract_tracked_particles( iteration,
-                    self.data_reader, data_list, species, self.extensions )
+                read_batch = [[]]
+                current_n = 0
+                current_batch = 0
+                for index, row in block_meta_df.iterrows():
+                    if current_n + row['block_count'] > max_N:
+                        current_batch += 1
+                        read_batch.append([])
+                        current_n = 0
+
+                    current_n += row['block_count']
+                    read_batch[current_batch].append((row['block_start'], row['block_count']))
+
+                select_array_list = list()
+                for batch in read_batch:
+                    self.read_chunk_range = list(map(self.batch_to_tuple, batch))
+                    batch_total_particle = sum([x[1] for x in batch])
+
+                    select_array = np.ones(batch_total_particle, dtype='bool')
+                    # Loop through the selection rules, and aggregate results in select_array
+                    for quantity in select.keys():
+                        q = self.data_reader.read_species_data(
+                            iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
+                        
+                        start = time.time()
+                        # Check lower bound
+                        if select[quantity][0] is not None:
+                            select_array = np.logical_and(
+                                select_array,
+                                q > select[quantity][0])
+                        # Check upper bound
+                        if select[quantity][1] is not None:
+                            select_array = np.logical_and(
+                                select_array,
+                                q < select[quantity][1])
+                        end = time.time()
+                        print("calculate particle level select array. Time elapsed: ", end - start)
+
+                        del q
+
+                    select_array_list.append(select_array)
+                
+                data_map = dict()
+                i = 0
+                for batch in read_batch:
+                    self.read_chunk_range = list(map(self.batch_to_tuple, batch))
+
+                    for quantity in var_list:
+                        if quantity not in data_map.keys():
+                            data_map[quantity] = list()
+
+                        data = self.data_reader.read_species_data(
+                            iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
+                        
+                        start = time.time()
+                        data = data[select_array_list[i]]
+                        end = time.time()
+                        print("apply particle level select array. Time elapsed: ", end - start)
+                        data_map[quantity].append(data)
+                        
+                        del data
+
+                    i += 1
+
+                for quantity in data_map.keys():
+                    data_list.append(np.concatenate(data_map[quantity]))
+
+            else:
+                # 1. default method
+                for quantity in var_list:
+                    data_list.append( self.data_reader.read_species_data(
+                        iteration, species, quantity, self.extensions))
+
+                # Apply selection if needed
+                if isinstance( select, dict ):
+                    data_list = apply_selection( iteration, self.data_reader,
+                        data_list, select, species, self.extensions)
+                elif isinstance( select, ParticleTracker ):
+                    data_list = select.extract_tracked_particles( iteration,
+                        self.data_reader, data_list, species, self.extensions )
             print(len(data_list[0]))
-            end = time.time()
-            print("apply particle level select array. Time elapsed: ", end - start)
 
         # Use the geos_index to select particles
         else:
@@ -535,9 +619,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 elif self.geos_index_secondary_type != "none" and geos_index_use_secondary:
                     # which means to read by the secondary slice
                     # no mask
+                    start = time.time()
                     for block_start in list(query_result[0].keys()):
                         temp = query_result[0][block_start].q.items()
                         self.read_chunk_range += list(map(self.result_to_tuple, temp))
+                    end = time.time()
+                    print("Direct slice read. generate select array. Time elapsed: ", end - start)
+
 
                 else:
                     print("Error: No valid geos_index read strategy")
@@ -550,7 +638,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         start = time.time()
                         data_map[quantity] = data_map[quantity][select_array]
                         end = time.time()
-                        print("data apply index select array. Time elapsed: ", end - start)
+                        print("apply particle level select array. Time elapsed: ", end - start)
                     data_size = len(data_map[quantity])
                     print(quantity, data_size)
 
@@ -559,14 +647,14 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 if select_all_flag:
                     for key in var_list:
                         data_list.append(data_map[key])
-                else:
-                    start = time.time()
+                else:     
                     select_array = np.ones(data_size, dtype='bool')
                     for quantity in select.keys():
                         if skip_offset and quantity in {'ux', 'uy', 'uz'}:
                             select[quantity][0] /= momentum_constant
                             select[quantity][1] /= momentum_constant
 
+                        start = time.time()
                         # Check lower bound
                         if select[quantity][0] is not None:
                             print("The lower bound of", quantity, "is", select[quantity][0])
@@ -579,7 +667,10 @@ class OpenPMDTimeSeries(InteractiveViewer):
                             select_array = np.logical_and(
                                 select_array,
                                 data_map[quantity] < select[quantity][1])
+                        end = time.time()
+                        print("calculate particle level select array. Time elapsed: ", end - start)
 
+                    start = time.time()
                     # Use select_array to reduce each quantity
                     for key in var_list:
                         if len(data_map[key]) > 1:  # Do not apply selection on scalar records

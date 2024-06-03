@@ -25,6 +25,9 @@ def single_query_test(
         geos_index_use_secondary=False,
         geos_index_direct_block_read=True,
         geos_index_read_groups=False,
+
+        limit_memory_usage=None,
+        block_meta_path=None,
 ):
 
     ts = OpenPMDTimeSeries(
@@ -47,6 +50,8 @@ def single_query_test(
         geos_index_use_secondary=geos_index_use_secondary,
         geos_index_direct_block_read=geos_index_direct_block_read,
         geos_index_read_groups=geos_index_read_groups,
+        limit_memory_usage=limit_memory_usage,
+        block_meta_path=block_meta_path,
     )
 
     end = time.time()
@@ -64,6 +69,8 @@ if __name__ == "__main__":
     parser.add_argument('--query_seq', type=str, help='query sequence', default='0')
     parser.add_argument('--test_type', type=str, help='test type', default='0')
     parser.add_argument('--query_path', type=str, help='query path', default='results/10g_iteration_500/benchmark_result_00001_to_01.csv')
+    parser.add_argument('--limit_memory_usage', type=str, help='limit memory usage', default="")
+    parser.add_argument('--block_meta_path', type=str, help='block meta path', default="")
 
     args = parser.parse_args()
     bp_file_path = args.bpfile
@@ -73,6 +80,12 @@ if __name__ == "__main__":
     query_seq = args.query_seq
     test_type = args.test_type
     query_path = args.query_path
+    limit_memory_usage = args.limit_memory_usage
+    block_meta_path = args.block_meta_path
+
+    if limit_memory_usage == "" and block_meta_path == "":
+        limit_memory_usage = None
+        block_meta_path = None
 
     if not bp_file_path or not index_path:
         raise ValueError("bpfile and index are required")
@@ -98,6 +111,9 @@ if __name__ == "__main__":
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
+
+            limit_memory_usage=limit_memory_usage,
+            block_meta_path=block_meta_path,
         )
 
     elif test_type == "2":
