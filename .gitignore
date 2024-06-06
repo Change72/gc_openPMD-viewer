@@ -12,3 +12,6 @@ tutorials/example-2d
 example-2d
 .idea/*
 log/
+*log
+plot/
+output/
