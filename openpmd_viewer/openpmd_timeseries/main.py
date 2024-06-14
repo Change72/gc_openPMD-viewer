@@ -536,18 +536,28 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 start = time.time()
                 # intersect the result, use the first one as the base
                 if len(query_result) > 1:
+                    block_start_set = set(query_result[0].keys())
                     for i in range(1, len(query_result)):
-                        for block_start in list(query_result[0].keys()):
-                            # Current block is not in the other query result, remove it
-                            if block_start not in query_result[i].keys():
-                                del query_result[0][block_start]
-                                continue
+                        # interact the result
+                        block_start_set = block_start_set.intersection(set(query_result[i].keys()))
+                    # remove the block that is not in the intersection
+                    for block_start in list(query_result[0].keys()):
+                        if block_start not in block_start_set:
+                            del query_result[0][block_start]
 
-                            # Current block is in the other query result, but the secondary slice is not, remove it
-                            if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
-                                for slice_start in list(query_result[0][block_start].q.keys()):
-                                    if slice_start not in query_result[i][block_start].q.keys():
-                                        del query_result[0][block_start].q[slice_start]
+                    end = time.time()
+                    print("intersect the result. Time elapsed: ", end - start)
+                    start = time.time()
+                    # Current block is in the other query result, but the secondary slice is not, remove it
+                    if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
+                        for block_start in list(query_result[0].keys()):
+                            slice_start_set = set(query_result[0][block_start].q.keys())
+                            for i in range(1, len(query_result)):
+                                slice_start_set = slice_start_set.intersection(set(query_result[i][block_start].q.keys()))
+
+                            for slice_start in list(query_result[0][block_start].q.keys()):
+                                if slice_start not in slice_start_set:
+                                    del query_result[0][block_start].q[slice_start]
                         
                 if len(query_result[0]) == 0:
                     return list(), list()
