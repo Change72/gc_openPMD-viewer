@@ -101,6 +101,7 @@ def read_species_data(series, iteration, species_name, component_name,
         data += offset
         end = time.time()
         print("data += offset. Time elapsed: ", end - start)
+        del offset
 
     # - Return momentum in normalized units
     elif component_name in ['ux', 'uy', 'uz' ]:
@@ -113,13 +114,72 @@ def read_species_data(series, iteration, species_name, component_name,
         start = time.time()
         # Normalize only if the particle mass is non-zero
         if np.all( m != 0 ):
-            norm_factor = 1. / (m * constants.c)
-            data *= norm_factor
+            data *= 1. / (m * constants.c)
         end = time.time()
         print("data *= norm_factor. Time elapsed: ", end - start)
+        del m
 
     # Return the data
     return data
+
+
+def read_species_support_data(series, iteration, species_name, component_name,
+                      extensions, read_chunk_range=None, skip_offset=False):
+    it = series.iterations[iteration]
+
+    # Translate the record component to the openPMD format
+    dict_record_comp = {'x': ['position', 'x'],
+                        'y': ['position', 'y'],
+                        'z': ['position', 'z'],
+                        'ux': ['momentum', 'x'],
+                        'uy': ['momentum', 'y'],
+                        'uz': ['momentum', 'z'],
+                        'w': ['weighting', None]}
+
+    if component_name in dict_record_comp:
+        ompd_record_name, ompd_record_comp_name = \
+            dict_record_comp[component_name]
+    elif component_name.find('/') != -1:
+        ompd_record_name, ompd_record_comp_name = \
+            component_name.split('/')
+    else:
+        ompd_record_name = component_name
+        ompd_record_comp_name = None
+
+    # Extract the right dataset
+    species = it.particles[species_name]
+    record = species[ompd_record_name]
+
+    # For ED-PIC: if the data is weighted for a full macroparticle,
+    # divide by the weight with the proper power
+    # (Skip this if the current record component is the weight itself)
+    if 'ED-PIC' in extensions and ompd_record_name != 'weighting':
+        macro_weighted = record.get_attribute('macroWeighted')
+        weighting_power = record.get_attribute('weightingPower')
+        if (macro_weighted == 1) and (weighting_power != 0):
+            w_component = next(species['weighting'].items())[1]
+            w = get_data_new(series, w_component, read_chunk_range=read_chunk_range)
+            return w ** (-weighting_power)
+
+    # - Return positions, with an offset
+    if component_name in ['x', 'y', 'z']:
+        start = time.time()
+        offset = get_data_new(series, species['positionOffset'][component_name], read_chunk_range=read_chunk_range)
+        end = time.time()
+        print(f"get position offset for read {component_name}. Time elapsed: ", end - start)
+
+        return offset
+
+    # - Return momentum in normalized units
+    elif component_name in ['ux', 'uy', 'uz' ]:
+        mass_component = next(species['mass'].items())[1]
+        start = time.time()
+        m = get_data_new(series, mass_component, read_chunk_range=read_chunk_range)
+        end = time.time()
+        print(f"get mass read for {component_name}. Time elapsed: ", end - start)
+
+        # Normalize only if the particle mass is non-zero
+        return m
 
 def tuple_to_slice(read_chunk_range):
     return tuple(map(lambda s: slice(s[0], s[1], s[2]), read_chunk_range))
@@ -128,9 +188,12 @@ def tuple_to_slice(read_chunk_range):
 def gc_get_data(series, component, chunk_slices, output_type=None):
     raw_data_list = list()
     for chunk_slice in chunk_slices:
+        # start = time.time()
         x = component[chunk_slice]
         series.flush()
         raw_data_list.append(x)
+        # end = time.time()
+        # print(x.size, end - start)
     data = np.concatenate(raw_data_list)
 
     if (output_type is not None) and (data.dtype != output_type):

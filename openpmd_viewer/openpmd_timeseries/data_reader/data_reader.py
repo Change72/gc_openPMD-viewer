@@ -296,6 +296,10 @@ class DataReader( object ):
             return io_reader.read_species_data(
                     self.series, iteration, species, record_comp, extensions, read_chunk_range, skip_offset)
 
+    def read_species_support_data( self, iteration, species, record_comp, extensions, read_chunk_range=None, skip_offset=False):
+        return io_reader.read_species_support_data(
+                self.series, iteration, species, record_comp, extensions, read_chunk_range, skip_offset)
+
     def get_grid_parameters(self, iteration, avail_fields, metadata ):
         """
         Return the parameters of the spatial grid (grid size and grid range)

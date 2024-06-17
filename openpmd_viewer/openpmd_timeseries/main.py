@@ -147,12 +147,16 @@ class OpenPMDTimeSeries(InteractiveViewer):
         self.plotter = Plotter(self.t, self.iterations)
 
         # - gc read strategy
-        self.max_level = 3
-        self.max_read_length = 100000000
+        self.max_level = 999
+        self.max_read_length = 10000000000
         self.sorted_blocks = None
         self.read_strategy = list()
-        self.k = (3.7/3.4)*10e-8
-        self.b = 0.06
+        if "large" in path_to_dir or "openPMD" in path_to_dir:
+            self.k = 1.86*10e-8
+            self.b = 0
+        else:
+            self.k = 3.35*10e-9
+            self.b = 0
 
 
     def result_to_tuple(self, result_obj):
@@ -533,9 +537,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 end = time.time()
                 print("query index: Time elapsed: ", end - start)
 
-                start = time.time()
                 # intersect the result, use the first one as the base
                 if len(query_result) > 1:
+                    start = time.time()
                     block_start_set = set(query_result[0].keys())
                     for i in range(1, len(query_result)):
                         # interact the result
@@ -545,9 +549,10 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         if block_start not in block_start_set:
                             del query_result[0][block_start]
 
-                    end = time.time()
-                    print("intersect the result. Time elapsed: ", end - start)
-                    start = time.time()
+                    # end = time.time()
+                    # print("intersect the first level index result. Time elapsed: ", end - start)
+                    # start = time.time()
+
                     # Current block is in the other query result, but the secondary slice is not, remove it
                     if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
                         for block_start in list(query_result[0].keys()):
@@ -558,14 +563,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                             for slice_start in list(query_result[0][block_start].q.keys()):
                                 if slice_start not in slice_start_set:
                                     del query_result[0][block_start].q[slice_start]
-                        
+                    end = time.time()
+                    print("remove duplication. Time elapsed: ", end - start)
+
                 if len(query_result[0]) == 0:
                     return list(), list()
-                end = time.time()
 
                 print("The size of the query result: ", len(query_result[0]))
-                print("remove duplication. Time elapsed: ", end - start)
-
                 if limit_block_num and len(query_result[0]) > limit_block_num:
                     return f"The number of blocks is {len(query_result[0])}, please reduce the range of the selection"
 
@@ -658,7 +662,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     for key in var_list:
                         data_list.append(data_map[key])
                 else:     
-                    select_array = np.ones(data_size, dtype='bool')
+                    select_array_particle = np.ones(data_size, dtype='bool')
                     for quantity in select.keys():
                         if skip_offset and quantity in {'ux', 'uy', 'uz'}:
                             select[quantity][0] /= momentum_constant
@@ -668,27 +672,54 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         # Check lower bound
                         if select[quantity][0] is not None:
                             print("The lower bound of", quantity, "is", select[quantity][0])
-                            select_array = np.logical_and(
-                                select_array,
+                            select_array_particle = np.logical_and(
+                                select_array_particle,
                                 data_map[quantity] > select[quantity][0])
                         # Check upper bound
                         if select[quantity][1] is not None:
                             print("The upper bound of", quantity, "is", select[quantity][1])
-                            select_array = np.logical_and(
-                                select_array,
+                            select_array_particle = np.logical_and(
+                                select_array_particle,
                                 data_map[quantity] < select[quantity][1])
                         end = time.time()
                         print("calculate particle level select array. Time elapsed: ", end - start)
 
                     start = time.time()
-                    # Use select_array to reduce each quantity
+                    # Use select_array_particle to reduce each quantity
                     for key in var_list:
                         if len(data_map[key]) > 1:  # Do not apply selection on scalar records
-                            data_list.append(data_map[key][select_array])
-
-                    print("selected data length: ", len(data_list[0]))
+                            data_map[key] = data_map[key][select_array_particle]
                     end = time.time()
                     print("apply particle level select array. Time elapsed: ", end - start)
+
+                    if skip_offset:
+                        for quantity in select.keys():
+                            # read support data
+                            # start = time.time()
+                            support_quantity_data = self.data_reader.read_species_support_data(iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
+                            # end = time.time()
+                            # print(f"get support data for read {quantity}. Time elapsed: ", end - start)
+                            
+                            start = time.time()
+                            support_quantity_data = support_quantity_data[select_array]
+                            support_quantity_data = support_quantity_data[select_array_particle]
+
+                            if quantity in {'ux', 'uy', 'uz'} and quantity in var_list:
+                                if np.all( support_quantity_data != 0 ):
+                                    data_map[quantity] *= 1. / (support_quantity_data * constants.c)
+                            elif quantity in {'x', 'y', 'z'} and quantity in var_list:
+                                data_map[quantity] += support_quantity_data
+                            end = time.time()
+                            print("data apply support data. Time elapsed: ", end - start)
+
+                            del support_quantity_data
+
+                    for key in var_list:
+                        if len(data_map[key]) > 1:  # Do not apply selection on scalar records
+                            data_list.append(data_map[key])
+                    print("selected data length: ", len(data_list[0]))
+
+                              
             else:
                 # todo particle tracing
                 pass
