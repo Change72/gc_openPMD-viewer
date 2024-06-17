@@ -701,7 +701,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
                             # print(f"get support data for read {quantity}. Time elapsed: ", end - start)
                             
                             start = time.time()
-                            support_quantity_data = support_quantity_data[select_array]
+                            if len(select_array) > 0:
+                                support_quantity_data = support_quantity_data[select_array]
                             support_quantity_data = support_quantity_data[select_array_particle]
 
                             if quantity in {'ux', 'uy', 'uz'} and quantity in var_list:

@@ -28,6 +28,8 @@ def single_query_test(
 
         limit_memory_usage=None,
         block_meta_path=None,
+
+        skip_offset=False,
 ):
 
     ts = OpenPMDTimeSeries(
@@ -50,6 +52,7 @@ def single_query_test(
         geos_index_use_secondary=geos_index_use_secondary,
         geos_index_direct_block_read=geos_index_direct_block_read,
         geos_index_read_groups=geos_index_read_groups,
+        skip_offset=skip_offset,
         limit_memory_usage=limit_memory_usage,
         block_meta_path=block_meta_path,
     )
@@ -534,4 +537,119 @@ if __name__ == "__main__":
             geos_index_use_secondary=True,
             geos_index_direct_block_read=True,
             geos_index_read_groups=False,
+        )
+
+    elif test_type == "22":
+        print("Test type 22: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: True, Skip_offset: True")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=True,
+            geos_index_type="minmax",
+            geos_index_storage_backend="file",
+            geos_index_save_path=index_path,
+            geos_index_secondary_type="none",
+
+            target_array=list(target_envelope.keys()),
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=False,
+            geos_index_direct_block_read=True,
+            geos_index_read_groups=False,
+
+            skip_offset=True,
+        )
+
+    elif test_type == "23":
+        print("Test type 3: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: True, Skip_offset: True")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=True,
+            geos_index_type="rtree",
+            geos_index_storage_backend="file",
+            geos_index_save_path=index_path,
+            geos_index_secondary_type="none",
+
+            target_array=list(target_envelope.keys()),
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=False,
+            geos_index_direct_block_read=True,
+            geos_index_read_groups=False,
+
+            skip_offset=True,
+        )
+
+    elif test_type == "24":
+        print("Test type 4: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=True,
+            geos_index_type="minmax",
+            geos_index_storage_backend="file",
+            geos_index_save_path=index_path,
+            geos_index_secondary_type="none",
+
+            target_array=list(target_envelope.keys()),
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=False,
+            geos_index_direct_block_read=False,
+            geos_index_read_groups=True,
+
+            skip_offset=True,
+        )
+
+    elif test_type == "25":
+        print("Test type 5: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=True,
+            geos_index_type="rtree",
+            geos_index_storage_backend="file",
+            geos_index_save_path=index_path,
+            geos_index_secondary_type="none",
+
+            target_array=list(target_envelope.keys()),
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=False,
+            geos_index_direct_block_read=False,
+            geos_index_read_groups=True,
+
+            skip_offset=True,
+        )
+
+    elif test_type == "26":
+        print("Test type 6: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, Skip_offset: True")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=True,
+            geos_index_type="minmax",
+            geos_index_storage_backend="file",
+            geos_index_save_path=index_path,
+            geos_index_secondary_type="minmax",
+
+            target_array=list(target_envelope.keys()),
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=True,
+            geos_index_direct_block_read=False,
+            geos_index_read_groups=False,
+
+            skip_offset=True,
         )

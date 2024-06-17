@@ -129,7 +129,7 @@ def extract_data_from_log(log_file):
                 if regex_result:
                     get_target_data_time_elapsed.append(float(regex_result[0]))
 
-            elif 'read for' in line or 'for read' in line or 'get support data' in line:
+            elif 'read for' in line or 'for read' in line:
                 # get position offset for read x. Time elapsed:  0.16732120513916016
                 # get mass read for ux. Time elapsed:  0.1673438549041748
                 regex_result = re.compile(r'Time elapsed: (.*)').findall(line)
