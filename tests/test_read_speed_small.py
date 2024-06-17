@@ -19,9 +19,9 @@ geos_ts = OpenPMDTimeSeries(bp_file_path, backend='openpmd-api', geos_index=True
                                  geos_index_storage_backend="file", geos_index_save_path=geos_index_path)
 
 
-result_1 = geos_ts.get_particle(['ux'], species=species, iteration=iteration, geos_index_read_groups=True, select={'ux': [5.282296854337066e-06, 1.1545774343591047e-05], 'uy': [0.00010659756255792407, 0.00021095902110522736], 'uz': [1.4626885514144121e-05, 2.9286875203982146e-05]})
+result_1 = geos_ts.get_particle(['ux'], species=species, iteration=iteration, select={'ux': [5.282296854337066e-06, 1.1545774343591047e-05], 'uy': [0.00010659756255792407, 0.00021095902110522736], 'uz': [1.4626885514144121e-05, 2.9286875203982146e-05]})
 
-result_2 = geos_ts.get_particle(['ux'], species=species, iteration=iteration, geos_index_read_groups=True, skip_offset=True, select={'ux': [5.282296854337066e-06, 1.1545774343591047e-05], 'uy': [0.00010659756255792407, 0.00021095902110522736], 'uz': [1.4626885514144121e-05, 2.9286875203982146e-05]})
+result_2 = geos_ts.get_particle(['ux'], species=species, iteration=iteration, skip_offset=True, select={'ux': [5.282296854337066e-06, 1.1545774343591047e-05], 'uy': [0.00010659756255792407, 0.00021095902110522736], 'uz': [1.4626885514144121e-05, 2.9286875203982146e-05]})
 
 # print(len(result_0[0]), len(result_1[0]), len(result_2[0]))
 
