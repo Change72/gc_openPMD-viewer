@@ -153,10 +153,10 @@ class OpenPMDTimeSeries(InteractiveViewer):
         self.read_strategy = list()
         if "large" in path_to_dir or "openPMD" in path_to_dir:
             self.k = 1.86*10e-8
-            self.b = 0
+            self.b = 6.2*10e-3
         else:
             self.k = 3.35*10e-9
-            self.b = 0
+            self.b = 6.2*10e-4
 
 
     def result_to_tuple(self, result_obj):
@@ -575,7 +575,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 # read data based on query_result[0]
                 self.read_chunk_range = list()
-                select_array = list()
+                # select_array = list()
+                # select_range = list()
                 # [fastest] group nearby blocks and read together
                 if geos_index_read_groups:
                     self.read_strategy = list()
@@ -590,10 +591,14 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     end = time.time()
                     print("find optimal read solution. Time elapsed: ", end - start)
 
+                    # offset = 0
                     for block_start_index, block_end_index in self.read_strategy:
                         # print(block_start_index, block_end_index)
                         self.read_chunk_range.append((self.sorted_blocks[block_start_index][1].start, self.sorted_blocks[block_end_index][1].end, None))
-
+                        # for i in range(block_start_index, block_end_index + 1):
+                        #     select_range.append((offset, self.sorted_blocks[i][1].end - self.sorted_blocks[i][1].start + offset))
+                        #     offset += self.sorted_blocks[i][1].end - self.sorted_blocks[i][1].start
+                    '''
                     if not select_all_flag:
                         start = time.time()
                         for block_start_index, block_end_index in self.read_strategy:
@@ -611,6 +616,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         select_array = np.concatenate(select_array)
                         end = time.time()
                         print("generate select array. Time elapsed: ", end - start)
+                    '''
 
                 # [middle] direct read block
                 elif geos_index_direct_block_read:
@@ -618,12 +624,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     self.read_chunk_range = list(map(self.result_to_tuple, query_result[0].items()))
 
                     # generate the mask for the data, if use secondary slice
-                    if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
-                        for block_start in list(query_result[0].keys()):
-                            select_array.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start, dtype='bool'))
-                            for slice_key, slice_obj in query_result[0][block_start].q.items():
-                                select_array[-1][slice_obj.start - query_result[0][block_start].start: slice_obj.end - query_result[0][block_start].start] = True
-                        select_array = np.concatenate(select_array)
+                    # if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
+                    #     self.sorted_blocks = sorted(query_result[0].items(), key=lambda x: int(x[0]))
+                    #     for block_start in list(query_result[0].keys()):
+                    #         select_array.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start, dtype='bool'))
+                    #         for slice_key, slice_obj in query_result[0][block_start].q.items():
+                    #             select_array[-1][slice_obj.start - query_result[0][block_start].start: slice_obj.end - query_result[0][block_start].start] = True
+                    #     select_array = np.concatenate(select_array)
 
                     end = time.time()
                     print("Direct block read. generate select array. Time elapsed: ", end - start)
@@ -647,12 +654,14 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 # read data based on the read_chunk_range
                 for quantity in set(var_list + list(select.keys())):
+                    print("size of self.read_chunk_range: ", len(self.read_chunk_range), " size of self.sorted_blocks: ", len(self.sorted_blocks))
                     data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
-                    if len(select_array) > 0 and not select_all_flag:
-                        start = time.time()
-                        data_map[quantity] = data_map[quantity][select_array]
-                        end = time.time()
-                        print("apply particle level select array. Time elapsed: ", end - start)
+                    # if len(select_range) > 0 and not select_all_flag:
+                    #     start = time.time()
+                    #     data_map[quantity] = data_map[quantity][select_array]
+                    #     # data_map[quantity] = np.hstack([data_map[quantity][range_local[0]:range_local[1]] for range_local in select_range])
+                    #     end = time.time()
+                    #     print("apply particle level select array. Time elapsed: ", end - start)
                     data_size = len(data_map[quantity])
                     print(quantity, data_size)
 
@@ -700,9 +709,21 @@ class OpenPMDTimeSeries(InteractiveViewer):
                             # end = time.time()
                             # print(f"get support data for read {quantity}. Time elapsed: ", end - start)
                             
-                            start = time.time()
-                            if len(select_array) > 0:
-                                support_quantity_data = support_quantity_data[select_array]
+                            start_time = time.time()
+                            # if len(select_range) > 0:
+                            #     # support_quantity_data = support_quantity_data[select_array]
+                            #     # support_quantity_data = np.hstack([support_quantity_data[range_local[0]:range_local[1]] for range_local in select_range])
+                            #     total_length = sum(end - start for start, end in select_range)
+                            #     new_array_prealloc = np.empty(total_length, dtype=support_quantity_data.dtype)
+                            #     current_position = 0
+                            #     for start, end in select_range:
+                            #         length = end - start
+                            #         new_array_prealloc[current_position:current_position + length] = support_quantity_data[start:end]
+                            #         current_position += length
+
+                            #     del support_quantity_data
+                            #     support_quantity_data = new_array_prealloc
+
                             support_quantity_data = support_quantity_data[select_array_particle]
 
                             if quantity in {'ux', 'uy', 'uz'} and quantity in var_list:
@@ -710,8 +731,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
                                     data_map[quantity] *= 1. / (support_quantity_data * constants.c)
                             elif quantity in {'x', 'y', 'z'} and quantity in var_list:
                                 data_map[quantity] += support_quantity_data
-                            end = time.time()
-                            print("data apply support data. Time elapsed: ", end - start)
+                            end_time = time.time()
+                            print("data apply support data. Time elapsed: ", end_time - start_time)
 
                             del support_quantity_data
 
