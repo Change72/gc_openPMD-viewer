@@ -13,6 +13,6 @@ example-2d
 .idea/*
 log/
 *log
-plot/
+plot/*.py
 output/
 myenv/
