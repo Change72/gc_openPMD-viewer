@@ -654,7 +654,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 # read data based on the read_chunk_range
                 for quantity in set(var_list + list(select.keys())):
-                    print("size of self.read_chunk_range: ", len(self.read_chunk_range), " size of self.sorted_blocks: ", len(self.sorted_blocks))
+                    print("size of self.read_chunk_range: ", len(self.read_chunk_range))
                     data_map[quantity] = self.data_reader.read_species_data(iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
                     # if len(select_range) > 0 and not select_all_flag:
                     #     start = time.time()

@@ -162,7 +162,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "4":
-        print("Test type 4: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True")
+        print("Test type 4: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -183,7 +183,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "5":
-        print("Test type 5: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True")
+        print("Test type 5: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -204,7 +204,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "6":
-        print("Test type 6: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False")
+        print("Test type 6: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -225,7 +225,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "7":
-        print("Test type 7: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False")
+        print("Test type 7: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -246,7 +246,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "8":
-        print("Test type 8: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: True")
+        print("Test type 8: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -267,7 +267,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "9":
-        print("Test type 9: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: True")
+        print("Test type 9: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -288,7 +288,7 @@ if __name__ == "__main__":
         )
     
     elif test_type == "10":
-        print("Test type 10: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: True, Read Groups: False")
+        print("Test type 10: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: True, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -309,7 +309,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "11":
-        print("Test type 11: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: True, Read Groups: False")
+        print("Test type 11: GeoIndex, Index type: Rtree, Storage: File, Secondary: Min-Max, Direct Block Read: True, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -372,7 +372,7 @@ if __name__ == "__main__":
         )
     
     elif test_type == "14":
-        print("Test type 14: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: None, Direct Block Read: False, Read Groups: True")
+        print("Test type 14: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: None, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -393,7 +393,7 @@ if __name__ == "__main__":
         )
     
     elif test_type == "15":
-        print("Test type 15: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: None, Direct Block Read: False, Read Groups: True")
+        print("Test type 15: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: None, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -414,7 +414,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "16":
-        print("Test type 16: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: False")
+        print("Test type 16: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -435,7 +435,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "17":
-        print("Test type 17: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: False")
+        print("Test type 17: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -456,7 +456,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "18":
-        print("Test type 18: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: True")
+        print("Test type 18: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -477,7 +477,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "19":
-        print("Test type 19: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: True")
+        print("Test type 19: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: False, Read Groups: True, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -498,7 +498,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "20":
-        print("Test type 20: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: True, Read Groups: False")
+        print("Test type 20: GeoIndex, Index type: Min-Max, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: True, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -519,7 +519,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "21":
-        print("Test type 21: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: True, Read Groups: False")
+        print("Test type 21: GeoIndex, Index type: Rtree, Storage: RocksDB, Secondary: Min-Max, Direct Block Read: True, Read Groups: False, ")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -563,7 +563,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "23":
-        print("Test type 3: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: True, Skip_offset: True")
+        print("Test type 23: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: True, Skip_offset: True")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -586,7 +586,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "24":
-        print("Test type 4: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
+        print("Test type 24: GeoIndex, Index type: Min-Max, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -609,7 +609,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "25":
-        print("Test type 5: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
+        print("Test type 25: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True")
 
         single_query_test(
             bp_file_path=bp_file_path,
@@ -632,7 +632,7 @@ if __name__ == "__main__":
         )
 
     elif test_type == "26":
-        print("Test type 6: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, Skip_offset: True")
+        print("Test type 26: GeoIndex, Index type: Min-Max, Storage: File, Secondary: Min-Max, Direct Block Read: False, Read Groups: False, Skip_offset: True")
 
         single_query_test(
             bp_file_path=bp_file_path,

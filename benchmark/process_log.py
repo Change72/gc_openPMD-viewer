@@ -22,8 +22,10 @@ def extract_data_from_log(log_file):
     secondary = None
     direct_block_read = None
     read_groups = None
+    skip_offset = None
     query_index_time_elapsed = None
     query_result_size = None
+    chunk_range_size = None
     remove_duplication_time_elapsed = None
     sort_block_metadata_time_elapsed = None
     find_optimal_read_solution_time_elapsed = None
@@ -81,10 +83,15 @@ def extract_data_from_log(log_file):
                     secondary = regex_result[0][2]
                     direct_block_read = regex_result[0][3][:5].replace(',', '')
                 
-                regex_result = re.compile(r'Read Groups: (.*)').findall(line)
+                regex_result = re.compile(r'Read Groups: (.*?),').findall(line)
                 read_groups = False
                 if regex_result:
                     read_groups = regex_result[0]
+                
+                # Test type 5: GeoIndex, Index type: Rtree, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: True, Skip_offset: True
+                regex_result = re.compile(r'Skip_offset: (.*)').findall(line)
+                if regex_result:
+                    skip_offset = regex_result[0]
 
             elif 'query index' in line:
                 # query index: Time elapsed:  0.08427143096923828
@@ -97,6 +104,12 @@ def extract_data_from_log(log_file):
                 regex_result = re.compile(r'The size of the query result: (.*)').findall(line)
                 if regex_result:
                     query_result_size = int(regex_result[0])
+
+            elif 'read_chunk_range' in line:
+                # size of self.read_chunk_range:  1656  size of self.sorted_blocks:  2456
+                regex_result = re.compile(r'size of self.read_chunk_range: (.*)').findall(line)
+                if regex_result:
+                    chunk_range_size = int(regex_result[0])
 
             elif 'remove duplication' in line:
                 # remove duplication. Time elapsed:  0.004973649978637695
@@ -173,6 +186,7 @@ def extract_data_from_log(log_file):
         'secondary': secondary,
         'direct_block_read': direct_block_read,
         'read_groups': read_groups,
+        'skip_offset': skip_offset,
 
         'query_index_time_elapsed': query_index_time_elapsed,
         'remove_duplication_time_elapsed': remove_duplication_time_elapsed,
@@ -187,6 +201,7 @@ def extract_data_from_log(log_file):
         'total_time_elapsed': total_time_elapsed,
 
         'query_result_size': query_result_size,
+        'chunk_range_size': chunk_range_size,
         'current_percentage': current_percentage,
         'iteration': iteration,
         'species': species,
