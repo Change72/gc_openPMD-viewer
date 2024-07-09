@@ -1,0 +1,11 @@
+query_seq,target_percentage,select_set,test_type,test_name,index_type,storage,secondary,direct_block_read,read_groups,skip_offset,query_index_time_elapsed,remove_duplication_time_elapsed,sort_block_metadata_time_elapsed,find_optimal_read_solution_time_elapsed,generate_select_array_time_elapsed,get_target_data_time_elapsed,get_support_data_time_elapsed,data_calculation_time_elapsed,data_apply_select_time_elapsed,apply_particle_level_select_array_time_elapsed,total_time_elapsed,query_result_size,chunk_range_size,current_percentage,iteration,species,expand_set,envelope,data_size
+0,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,332.9785454273224,0,0,0,0,,,,0.0001,10000,hydrogen,{'ux'},"{'ux': [0.0020060175234549965, 0.0020083499991353343]}",
+1,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,319.2768404483795,0,0,0,0,,,,0.000101,10000,hydrogen,{'ux'},"{'ux': [-0.0001250131190829324, -0.0001247448569633433]}",
+2,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,321.93904280662537,0,0,0,0,,,,0.000101,10000,hydrogen,{'ux'},"{'ux': [-0.00034973556361099354, -0.0003487858703561555]}",
+3,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,370.18598794937134,0,0,0,0,,,,0.0001,10000,hydrogen,{'ux'},"{'ux': [-0.001767449152699899, -0.0017656660950037396]}",
+4,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,338.10962653160095,0,0,0,0,,,,9.9e-05,10000,hydrogen,{'ux'},"{'ux': [0.005230916626808452, 0.0052366000498427915]}",
+5,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,324.4272930622101,0,0,0,0,,,,0.0001,10000,hydrogen,{'ux'},"{'ux': [-0.0004767329149774978, -0.0004757001264309595]}",
+6,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,374.7618052959442,0,0,0,0,,,,9.9e-05,10000,hydrogen,{'ux'},"{'ux': [0.0012937784372869514, 0.0012955635060097786]}",
+7,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,343.81229305267334,0,0,0,0,,,,9.9e-05,10000,hydrogen,{'ux'},"{'ux': [-0.003850705875624245, -0.003847219430158874]}",
+8,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,322.10497212409973,0,0,0,0,,,,0.0001,10000,hydrogen,{'ux'},"{'ux': [-0.00027681643395289184, -0.0002760261673437389]}",
+9,0.01%,"('ux',)",1,Original,,,,,False,,,,,,,357.5574915409088,0,0,0,0,,,,9.9e-05,10000,hydrogen,{'ux'},"{'ux': [-0.0019551650236630095, -0.0019533063791186537]}",
