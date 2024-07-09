@@ -185,17 +185,22 @@ def tuple_to_slice(read_chunk_range):
     return tuple(map(lambda s: slice(s[0], s[1], s[2]), read_chunk_range))
 
 
-def gc_get_data(series, component, chunk_slices, output_type=None):
-    raw_data_list = list()
+def gc_get_data(series, component, length, chunk_slices, output_type=None):
+    data = np.full(length, 0, component.dtype)
+    # raw_data_list = list()
+    offset = 0
     for chunk_slice in chunk_slices:
         # start = time.time()
         x = component[chunk_slice]
         series.flush()
-        raw_data_list.append(x)
+        read_slice = slice(offset, offset + x.size, None)
+        offset += x.size
+        data[read_slice] = x
+        # raw_data_list.append(x)
         # end = time.time()
         # print(x.size, end - start)
-    data = np.concatenate(raw_data_list)
-
+    # data = np.concatenate(raw_data_list)
+    # print(data.shape)
     if (output_type is not None) and (data.dtype != output_type):
         data = data.astype( output_type )
     return data
@@ -205,5 +210,6 @@ def get_data_new(series, record_component, i_slice=None, pos_slice=None, output_
         return get_data(series, record_component, i_slice, pos_slice, output_type)
     else:
         chunk_slices = tuple_to_slice(read_chunk_range)
-        return gc_get_data(series, record_component, chunk_slices, output_type)
+        length = sum([chunk_range[1] - chunk_range[0] for chunk_range in read_chunk_range])
+        return gc_get_data(series, record_component, length, chunk_slices, output_type)
 
