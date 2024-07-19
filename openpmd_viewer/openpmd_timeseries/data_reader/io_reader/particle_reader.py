@@ -114,7 +114,10 @@ def read_species_data(series, iteration, species_name, component_name,
         start = time.time()
         # Normalize only if the particle mass is non-zero
         if np.all( m != 0 ):
-            data *= 1. / (m * constants.c)
+            m *= constants.c
+            temp = np.full_like(m, 1.0)
+            temp /= m
+            data *= temp
         end = time.time()
         print("data *= norm_factor. Time elapsed: ", end - start)
         del m

@@ -701,40 +701,43 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     end = time.time()
                     print("apply particle level select array. Time elapsed: ", end - start)
 
-                    if skip_offset:
-                        for quantity in select.keys():
-                            # read support data
-                            # start = time.time()
-                            support_quantity_data = self.data_reader.read_species_support_data(iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
-                            # end = time.time()
-                            # print(f"get support data for read {quantity}. Time elapsed: ", end - start)
-                            
-                            start_time = time.time()
-                            # if len(select_range) > 0:
-                            #     # support_quantity_data = support_quantity_data[select_array]
-                            #     # support_quantity_data = np.hstack([support_quantity_data[range_local[0]:range_local[1]] for range_local in select_range])
-                            #     total_length = sum(end - start for start, end in select_range)
-                            #     new_array_prealloc = np.empty(total_length, dtype=support_quantity_data.dtype)
-                            #     current_position = 0
-                            #     for start, end in select_range:
-                            #         length = end - start
-                            #         new_array_prealloc[current_position:current_position + length] = support_quantity_data[start:end]
-                            #         current_position += length
+                if skip_offset:
+                    for quantity in select.keys():
+                        # read support data
+                        # start = time.time()
+                        support_quantity_data = self.data_reader.read_species_support_data(iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
+                        # end = time.time()
+                        # print(f"get support data for read {quantity}. Time elapsed: ", end - start)
+                        
+                        start_time = time.time()
+                        # if len(select_range) > 0:
+                        #     # support_quantity_data = support_quantity_data[select_array]
+                        #     # support_quantity_data = np.hstack([support_quantity_data[range_local[0]:range_local[1]] for range_local in select_range])
+                        #     total_length = sum(end - start for start, end in select_range)
+                        #     new_array_prealloc = np.empty(total_length, dtype=support_quantity_data.dtype)
+                        #     current_position = 0
+                        #     for start, end in select_range:
+                        #         length = end - start
+                        #         new_array_prealloc[current_position:current_position + length] = support_quantity_data[start:end]
+                        #         current_position += length
 
-                            #     del support_quantity_data
-                            #     support_quantity_data = new_array_prealloc
+                        #     del support_quantity_data
+                        #     support_quantity_data = new_array_prealloc
 
-                            support_quantity_data = support_quantity_data[select_array_particle]
+                        support_quantity_data = support_quantity_data[select_array_particle]
 
-                            if quantity in {'ux', 'uy', 'uz'} and quantity in var_list:
-                                if np.all( support_quantity_data != 0 ):
-                                    data_map[quantity] *= 1. / (support_quantity_data * constants.c)
-                            elif quantity in {'x', 'y', 'z'} and quantity in var_list:
-                                data_map[quantity] += support_quantity_data
-                            end_time = time.time()
-                            print("data apply support data. Time elapsed: ", end_time - start_time)
+                        if quantity in {'ux', 'uy', 'uz'} and quantity in var_list:
+                            if np.all( support_quantity_data != 0 ):
+                                support_quantity_data *= constants.c
+                                temp = np.full_like(support_quantity_data, 1.0)
+                                temp /= support_quantity_data
+                                data_map[quantity] *= temp
+                        elif quantity in {'x', 'y', 'z'} and quantity in var_list:
+                            data_map[quantity] += support_quantity_data
+                        end_time = time.time()
+                        print("data apply support data. Time elapsed: ", end_time - start_time)
 
-                            del support_quantity_data
+                        del support_quantity_data
 
                     for key in var_list:
                         if len(data_map[key]) > 1:  # Do not apply selection on scalar records
