@@ -98,6 +98,7 @@ if __name__ == "__main__":
     # int(query_seq), "envelope"
     line = df.iloc[int(query_seq)]
     print(line)
+    target_vars = list(eval(line["select_set"]))
     target_envelope = eval(line["envelope"])
     target_percentage = line["target_percentage"]
 
@@ -110,7 +111,7 @@ if __name__ == "__main__":
         single_query_test(
             bp_file_path=bp_file_path,
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -130,7 +131,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -151,7 +152,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -172,7 +173,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -193,7 +194,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -214,7 +215,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -235,7 +236,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -256,7 +257,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -277,7 +278,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -298,7 +299,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -319,7 +320,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -340,7 +341,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -361,7 +362,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -382,7 +383,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -403,7 +404,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -424,7 +425,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -445,7 +446,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -466,7 +467,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -487,7 +488,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -508,7 +509,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -529,7 +530,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -550,7 +551,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -573,7 +574,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -596,7 +597,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -619,7 +620,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="none",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,
@@ -642,7 +643,7 @@ if __name__ == "__main__":
             geos_index_save_path=index_path,
             geos_index_secondary_type="minmax",
 
-            target_array=list(target_envelope.keys()),
+            target_array=target_vars,
             species=species,
             iteration=iteration,
             select_envelope=target_envelope,

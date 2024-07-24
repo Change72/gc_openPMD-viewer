@@ -739,10 +739,10 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                         del support_quantity_data
 
-                    for key in var_list:
-                        if len(data_map[key]) > 1:  # Do not apply selection on scalar records
-                            data_list.append(data_map[key])
-                    print("selected data length: ", len(data_list[0]))
+                for key in var_list:
+                    if len(data_map[key]) > 1:  # Do not apply selection on scalar records
+                        data_list.append(data_map[key])
+                print("selected data length: ", len(data_list[0]))
 
                               
             else:
