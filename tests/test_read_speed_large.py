@@ -6,8 +6,8 @@ sys.path.insert(0, os.getcwd())
 import time
 from openpmd_viewer import OpenPMDTimeSeries
 
-bp_file_path = '/nvme/gc/openPMD/'
-geos_index_path = "/data/gc/rocksdb-index/GEOSIndex/build-with-blosc/bp10000"
+bp_file_path = '/data/gc/openPMD/'
+geos_index_path = "/data/gc/GEOSIndex/build-with-blosc/bp010000"
 
 species = "hydrogen"
 iteration = 10000

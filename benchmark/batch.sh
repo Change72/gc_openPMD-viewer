@@ -27,15 +27,15 @@ for ((i=1; i<=10000; i++)); do
         --index $index \
         --iteration $iteration \
 	    --species $species \
-        --select_set "x,y;ux,uy;x,y,ux,uy;x,ux,uy,uz;x,y,ux,uy,uz" \
+        --select_set "ux,uy,uz" \
         --threshold 0.01 \
-	    --percentage_range 0.0001,0.1,10 \
+	    --percentage_range 0.3 \
         --total_particle_num $total_particle_num \
         --limit_block_num 500 \
         --output_file $output_file \
         > "log/benchmark_result_$(printf '%05d' $i).log" \
         2>&1 &
-    sleep 120
+    sleep 90
     # if i / 20 == 0, Sleep for 3600 seconds
     # if [ $((i % 2)) -eq 0 ]; then
     #     sleep 1800

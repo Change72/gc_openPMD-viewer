@@ -19,6 +19,11 @@ if __name__ == "__main__":
 
     # Group by "target_percentage" and "select_set", then print length of each group
     grouped_df = df.groupby(["target_percentage", "select_set"]).size().reset_index(name="group_length")
+
+    # Set pandas display options to show all rows and columns
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+
     print(grouped_df)
 
     # we can use the column "envelope" to check if there are duplicated rows

@@ -8,6 +8,7 @@ Authors: Remi Lehe, Axel Huebl
 License: 3-Clause-BSD-LBNL
 """
 import time
+import libfbindex
 import geosindex
 import numpy as np
 import pandas as pd
@@ -39,6 +40,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
     def __init__(self, path_to_dir, check_all_files=True, backend=None, 
                     geos_index=False,
+                    fastbit_index=False,
                     geos_index_type="minmax",
                     geos_index_storage_backend = "file", 
                     geos_index_save_path=None,
@@ -75,6 +77,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     .format(backend, available_backends) )
         self.backend = backend
         self.geos_index = geos_index
+        self.fastbit_index = fastbit_index
         if self.geos_index:
             self.geos_index_type = geos_index_type
             self.geos_index_storage_backend = geos_index_storage_backend
@@ -85,10 +88,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
             elif geos_index_type == "rtree":
                 self.query_geos_index = geosindex.RTreeQuery(geos_index_save_path, geos_index_storage_backend, geos_index_secondary_type)
 
-            if key_generation_function:
-                self.key_generation_function = key_generation_function
-            else:
-                self.key_generation_function = lambda iteration, species, type, dimension=None: f"/data/{iteration}/particles/{species}/{type}/" + (f"{dimension}" if dimension else "")
+        if key_generation_function:
+            self.key_generation_function = key_generation_function
+        else:
+            self.key_generation_function = lambda iteration, species, type, dimension=None: f"/data/{iteration}/particles/{species}/{type}/" + (f"{dimension}" if dimension else "")
+
+        if self.fastbit_index:
+            self.query_fastbit_index = libfbindex.GeosFastBitQuery(geos_index_save_path, geos_index_storage_backend)
 
         # Initialize data reader
         self.data_reader = DataReader(backend)
@@ -370,7 +376,99 @@ class OpenPMDTimeSeries(InteractiveViewer):
         # Extract the list of particle quantities
         data_list = []
         if not self.geos_index or not select:
-            if limit_memory_usage is not None:
+            # fastbit method
+            if self.fastbit_index:
+                dict_record_comp = {'x': ['position', 'x'],
+                    'y': ['position', 'y'],
+                    'z': ['position', 'z'],
+                    'ux': ['momentum', 'x'],
+                    'uy': ['momentum', 'y'],
+                    'uz': ['momentum', 'z'],
+                    'w': ['weighting', None]}
+                
+                if species == "electrons":
+                    mass = 9.1093829099999999e-31
+                elif species == "hydrogen":
+                    mass = 1.6726219236900000e-27
+
+                momentum_constant = 1. / (mass * constants.c)
+
+                # read block meta info
+                block_meta_df = pd.read_csv(block_meta_path, sep=',', header=None, names=['iteration', 'block_start', 'block_count'])
+                block_meta_df = block_meta_df[block_meta_df['iteration'] == iteration]
+                block_meta_df = block_meta_df.sort_values(by=['block_start'])
+                # remove duplicate
+                block_meta_df = block_meta_df.drop_duplicates(subset=['block_start'])
+                block_meta_df = block_meta_df.reset_index(drop=True)
+
+                data_map = dict()
+                for block_id, row in block_meta_df.iterrows():
+                    start = time.time()
+                    block_result = list()
+                    for quantity in select.keys():
+                        fb_key = self.key_generation_function(iteration=iteration, species=species, type=dict_record_comp[quantity][0], dimension=dict_record_comp[quantity][1])
+                        
+                        lower_bound = select[quantity][0] 
+                        upper_bound = select[quantity][1] 
+
+                        if quantity in {'ux', 'uy', 'uz'}:
+                            lower_bound /= momentum_constant
+                            upper_bound /= momentum_constant
+
+                        # print(fb_key, block_id, row['block_count'], lower_bound, upper_bound)
+                        # print(fb_key)
+                        # print(block_id)
+                        # print(row['block_count'])
+                        # print(select[quantity][0]/momentum_constant)
+                        # print(select[quantity][1]/momentum_constant)
+                        # print(select[quantity][0])
+                        # print(select[quantity][1])
+                        # if dict_record_comp[quantity][0] == "momentum":
+                        #     result = self.query_fastbit_index.queryFastbitData(fb_key, 0, block_id, row['block_count'], select[quantity][0]/momentum_constant, select[quantity][1]/momentum_constant)
+                        # else:
+                        #     result = self.query_fastbit_index.queryFastbitData(fb_key, 0, block_id, row['block_count'], select[quantity][0], select[quantity][1])
+                        result = self.query_fastbit_index.queryFastbitData(fb_key, 0, block_id, row['block_count'], lower_bound, upper_bound)
+                        block_result.append(result)
+                    
+                    # intersect the result
+                    block_idx_set = set(block_result[0])
+                    if len(block_result) > 1:
+                        for i in range(1, len(block_result)):
+                            block_idx_set = block_idx_set.intersection(set(block_result[i]))
+                    end = time.time()
+                    print("Fastbit Index cost. Time elapsed: ", end - start)
+
+                    if len(block_idx_set) == 0:
+                        continue
+                    print(len(block_idx_set))
+                    # print(block_idx_set)
+
+                    self.read_chunk_range = list()
+                    self.read_chunk_range.append((row['block_start'], row['block_start'] + row['block_count'], None))
+
+                    start = time.time()
+                    for quantity in var_list:
+                        if quantity not in data_map.keys():
+                            data_map[quantity] = list()
+
+                        data = self.data_reader.read_species_data(
+                            iteration, species, quantity, self.extensions, self.read_chunk_range, False)
+                        
+                        # only keep the data that is in the intersection
+                        data = data[list(block_idx_set)]
+                        data_map[quantity].append(data)
+    
+                        del data
+                    end = time.time()
+                    print("Fastbit Read Data Cost. Time elapsed: ", end - start)
+
+                start = time.time()
+                for quantity in data_map.keys():
+                    data_list.append(np.concatenate(data_map[quantity]))
+                end = time.time()
+                print("Fastbit Concatenate Data. Time elapsed: ", end - start)
+
+            elif limit_memory_usage is not None:
                 # limit_memory_usage = 64GB
                 # Determine the number of particles
                 max_N = int(int(limit_memory_usage.replace("GB", "")) * 1024**3 / 8 / memory_usage_factor)
@@ -434,7 +532,7 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                         data = self.data_reader.read_species_data(
                             iteration, species, quantity, self.extensions, self.read_chunk_range, skip_offset)
-                        
+                
                         start = time.time()
                         data = data[select_array_list[i]]
                         end = time.time()
@@ -461,7 +559,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 elif isinstance( select, ParticleTracker ):
                     data_list = select.extract_tracked_particles( iteration,
                         self.data_reader, data_list, species, self.extensions )
-            print(len(data_list[0]))
+            if len(data_list) != 0:
+                print(len(data_list[0]))
 
         # Use the geos_index to select particles
         else:
@@ -486,16 +585,17 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 query_result = list()
                 data_map = dict()
                 data_size = None
-                select_all_flag = True
+
                 start = time.time()
                 if self.geos_index_type=="minmax":
-                    select_all_flag = False
                     for quantity in select.keys():
                         key = self.key_generation_function(iteration=iteration, species=species, type=dict_record_comp[quantity][0], dimension=dict_record_comp[quantity][1])
-                        if dict_record_comp[quantity][0] == "momentum":
-                            result = self.query_geos_index.queryMinMaxData(key, select[quantity][0]/momentum_constant, select[quantity][1]/momentum_constant)
-                        else:
+                        
+                        if dict_record_comp[quantity][0] == "position" or np.isinf(select[quantity][0]) or np.isinf(select[quantity][1]):
                             result = self.query_geos_index.queryMinMaxData(key, select[quantity][0], select[quantity][1])
+                        elif dict_record_comp[quantity][0] == "momentum":
+                            result = self.query_geos_index.queryMinMaxData(key, select[quantity][0]/momentum_constant, select[quantity][1]/momentum_constant)
+
                         # query_result includes max_6 members: dicts of position_xyz and momentum_xyz, then direct take interaction
                         query_result.append(result)
 
@@ -515,7 +615,6 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         if np.isinf(select[quantity][0]) and np.isinf(select[quantity][1]):
                             continue
                         
-                        select_all_flag = False
                         select_map[dict_record_comp[quantity][0]]["min" + dict_record_comp[quantity][1]] = select[quantity][0]
                         select_map[dict_record_comp[quantity][0]]["max" + dict_record_comp[quantity][1]] = select[quantity][1]
 
@@ -540,13 +639,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 # intersect the result, use the first one as the base
                 if len(query_result) > 1:
                     start = time.time()
-                    block_start_set = set(query_result[0].keys())
+                    block_idx_set = set(query_result[0].keys())
                     for i in range(1, len(query_result)):
                         # interact the result
-                        block_start_set = block_start_set.intersection(set(query_result[i].keys()))
+                        block_idx_set = block_idx_set.intersection(set(query_result[i].keys()))
                     # remove the block that is not in the intersection
                     for block_start in list(query_result[0].keys()):
-                        if block_start not in block_start_set:
+                        if block_start not in block_idx_set:
                             del query_result[0][block_start]
 
                     # end = time.time()
@@ -575,8 +674,8 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                 # read data based on query_result[0]
                 self.read_chunk_range = list()
-                # select_array = list()
-                # select_range = list()
+                select_array_secondary = list()
+                select_range_secondary = list()
                 # [fastest] group nearby blocks and read together
                 if geos_index_read_groups:
                     self.read_strategy = list()
@@ -598,25 +697,38 @@ class OpenPMDTimeSeries(InteractiveViewer):
                         # for i in range(block_start_index, block_end_index + 1):
                         #     select_range.append((offset, self.sorted_blocks[i][1].end - self.sorted_blocks[i][1].start + offset))
                         #     offset += self.sorted_blocks[i][1].end - self.sorted_blocks[i][1].start
-                    '''
-                    if not select_all_flag:
-                        start = time.time()
-                        for block_start_index, block_end_index in self.read_strategy:
-                            # generate the mask for the data
-                            select_array.append(np.zeros(self.sorted_blocks[block_end_index][1].end - self.sorted_blocks[block_start_index][1].start, dtype='bool'))
-                            for range_index in range(block_start_index, block_end_index + 1):
-                                if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
-                                    # for each block,
-                                    for slice_key, slice_obj in self.sorted_blocks[range_index][1].q.items():
-                                        select_array[-1][slice_obj.start - self.sorted_blocks[block_start_index][1].start: slice_obj.end - self.sorted_blocks[block_start_index][1].start] = True
-                                else:
-                                    # include the start and end
-                                    select_array[-1][self.sorted_blocks[range_index][1].start - self.sorted_blocks[block_start_index][1].start:
-                                                    self.sorted_blocks[range_index][1].end - self.sorted_blocks[block_start_index][1].start] = True
-                        select_array = np.concatenate(select_array)
-                        end = time.time()
-                        print("generate select array. Time elapsed: ", end - start)
-                    '''
+                    
+
+                    # generate the mask for the data
+                    start = time.time()
+                    select_array_length = sum([x[1] - x[0] for x in self.read_chunk_range])
+                    select_array_secondary = np.zeros(select_array_length, dtype='bool')
+                    for block_start_index, block_end_index in self.read_strategy:
+                        for range_index in range(block_start_index, block_end_index + 1):
+                            if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
+                                # for each slice,
+                                for slice_key, slice_obj in self.sorted_blocks[range_index][1].q.items():
+                                    select_array_secondary[slice_obj.start - self.sorted_blocks[block_start_index][1].start: slice_obj.end - self.sorted_blocks[block_start_index][1].start] = True
+                            else:
+                                # include the start
+                                select_array_secondary[self.sorted_blocks[range_index][1].start - self.sorted_blocks[block_start_index][1].start:
+                                                self.sorted_blocks[range_index][1].end - self.sorted_blocks[block_start_index][1].start] = True
+
+                    # for block_start_index, block_end_index in self.read_strategy:
+                    #     select_array_secondary.append(np.zeros(self.sorted_blocks[block_end_index][1].end - self.sorted_blocks[block_start_index][1].start, dtype='bool'))
+                    #     for range_index in range(block_start_index, block_end_index + 1):
+                    #         if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
+                    #             # for each slice,
+                    #             for slice_key, slice_obj in self.sorted_blocks[range_index][1].q.items():
+                    #                 select_array_secondary[-1][slice_obj.start - self.sorted_blocks[block_start_index][1].start: slice_obj.end - self.sorted_blocks[block_start_index][1].start] = True
+                    #         else:
+                    #             # include the start and end
+                    #             select_array_secondary[-1][self.sorted_blocks[range_index][1].start - self.sorted_blocks[block_start_index][1].start:
+                    #                             self.sorted_blocks[range_index][1].end - self.sorted_blocks[block_start_index][1].start] = True
+                    select_array_secondary = np.concatenate(select_array_secondary)
+                    end = time.time()
+                    print("generate select array. Time elapsed: ", end - start)
+                    
 
                 # [middle] direct read block
                 elif geos_index_direct_block_read:
@@ -624,13 +736,13 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     self.read_chunk_range = list(map(self.result_to_tuple, query_result[0].items()))
 
                     # generate the mask for the data, if use secondary slice
-                    # if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
-                    #     self.sorted_blocks = sorted(query_result[0].items(), key=lambda x: int(x[0]))
-                    #     for block_start in list(query_result[0].keys()):
-                    #         select_array.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start, dtype='bool'))
-                    #         for slice_key, slice_obj in query_result[0][block_start].q.items():
-                    #             select_array[-1][slice_obj.start - query_result[0][block_start].start: slice_obj.end - query_result[0][block_start].start] = True
-                    #     select_array = np.concatenate(select_array)
+                    if self.geos_index_secondary_type != "none" and geos_index_use_secondary:
+                        self.sorted_blocks = sorted(query_result[0].items(), key=lambda x: int(x[0]))
+                        for block_start in list(query_result[0].keys()):
+                            select_array_secondary.append(np.zeros(query_result[0][block_start].end - query_result[0][block_start].start, dtype='bool'))
+                            for slice_key, slice_obj in query_result[0][block_start].q.items():
+                                select_array_secondary[-1][slice_obj.start - query_result[0][block_start].start: slice_obj.end - query_result[0][block_start].start] = True
+                        select_array_secondary = np.concatenate(select_array_secondary)
 
                     end = time.time()
                     print("Direct block read. generate select array. Time elapsed: ", end - start)
@@ -665,41 +777,47 @@ class OpenPMDTimeSeries(InteractiveViewer):
                     data_size = len(data_map[quantity])
                     print(quantity, data_size)
 
+                start = time.time()
+                if len(select_array_secondary) > 0:
+                    for quantity in data_map.keys():
+                        if len(data_map[quantity]) > 1:
+                            data_map[quantity] = data_map[quantity][select_array_secondary]
+                            data_size = len(data_map[quantity])
+                end = time.time()
+                print("apply secondary slice select array. Time elapsed: ", end - start)
+
                 # Linear match the remaining data
                 data_list = list()
-                if select_all_flag:
-                    for key in var_list:
-                        data_list.append(data_map[key])
-                else:     
-                    select_array_particle = np.ones(data_size, dtype='bool')
-                    for quantity in select.keys():
-                        if skip_offset and quantity in {'ux', 'uy', 'uz'}:
-                            select[quantity][0] /= momentum_constant
-                            select[quantity][1] /= momentum_constant
-
-                        start = time.time()
-                        # Check lower bound
-                        if select[quantity][0] is not None:
-                            print("The lower bound of", quantity, "is", select[quantity][0])
-                            select_array_particle = np.logical_and(
-                                select_array_particle,
-                                data_map[quantity] > select[quantity][0])
-                        # Check upper bound
-                        if select[quantity][1] is not None:
-                            print("The upper bound of", quantity, "is", select[quantity][1])
-                            select_array_particle = np.logical_and(
-                                select_array_particle,
-                                data_map[quantity] < select[quantity][1])
-                        end = time.time()
-                        print("calculate particle level select array. Time elapsed: ", end - start)
+  
+                select_array_particle = np.ones(data_size, dtype='bool')
+                for quantity in select.keys():
+                    if skip_offset and quantity in {'ux', 'uy', 'uz'}:
+                        select[quantity][0] /= momentum_constant
+                        select[quantity][1] /= momentum_constant
 
                     start = time.time()
-                    # Use select_array_particle to reduce each quantity
-                    for key in var_list:
-                        if len(data_map[key]) > 1:  # Do not apply selection on scalar records
-                            data_map[key] = data_map[key][select_array_particle]
+                    # Check lower bound
+                    if select[quantity][0] is not None:
+                        print("The lower bound of", quantity, "is", select[quantity][0])
+                        select_array_particle = np.logical_and(
+                            select_array_particle,
+                            data_map[quantity] > select[quantity][0])
+                    # Check upper bound
+                    if select[quantity][1] is not None:
+                        print("The upper bound of", quantity, "is", select[quantity][1])
+                        select_array_particle = np.logical_and(
+                            select_array_particle,
+                            data_map[quantity] < select[quantity][1])
                     end = time.time()
-                    print("apply particle level select array. Time elapsed: ", end - start)
+                    print("calculate particle level select array. Time elapsed: ", end - start)
+
+                start = time.time()
+                # Use select_array_particle to reduce each quantity
+                for key in var_list:
+                    if len(data_map[key]) > 1:  # Do not apply selection on scalar records
+                        data_map[key] = data_map[key][select_array_particle]
+                end = time.time()
+                print("apply particle level select array. Time elapsed: ", end - start)
 
                 if skip_offset:
                     for quantity in select.keys():
@@ -723,6 +841,9 @@ class OpenPMDTimeSeries(InteractiveViewer):
 
                         #     del support_quantity_data
                         #     support_quantity_data = new_array_prealloc
+
+                        if len(select_array_secondary) > 0:
+                            select_quantity_data = support_quantity_data[select_array_secondary]
 
                         support_quantity_data = support_quantity_data[select_array_particle]
 

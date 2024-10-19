@@ -17,6 +17,8 @@ def single_query_test(
         geos_index_save_path=None,
         geos_index_secondary_type="none",
 
+        fastbit_index=False,
+
         target_array=["x"],
         species="electrons",
         iteration=300,
@@ -36,6 +38,7 @@ def single_query_test(
         path_to_dir=bp_file_path,
         backend='openpmd-api',
         geos_index=geos_index,
+        fastbit_index=fastbit_index,
         geos_index_type=geos_index_type,
         geos_index_storage_backend=geos_index_storage_backend,
         geos_index_save_path=geos_index_save_path,
@@ -58,7 +61,10 @@ def single_query_test(
     )
 
     end = time.time()
-    print(f"Total Time: {end - start}, data size: {result[0].size}")
+    if len(result) > 0:
+        print(f"Total Time: {end - start}, data size: {result[0].size}")
+    else:
+        print(f"Total Time: {end - start}, data size: 0")
     print()
     return end - start
 
@@ -653,4 +659,29 @@ if __name__ == "__main__":
             geos_index_read_groups=False,
 
             skip_offset=True,
+        )
+    
+    elif test_type == "27":
+        print("Test type 27: Fastbit, Index type: Fastbit, Storage: File, Secondary: None, Direct Block Read: False, Read Groups: False, Skip_offset: False")
+
+        single_query_test(
+            bp_file_path=bp_file_path,
+            geos_index=False,
+
+            fastbit_index=True,
+
+            geos_index_storage_backend="adios2",
+            geos_index_save_path=index_path,
+
+            target_array=target_vars,
+            species=species,
+            iteration=iteration,
+            select_envelope=target_envelope,
+
+            geos_index_use_secondary=False,
+            geos_index_direct_block_read=False,
+            geos_index_read_groups=False,
+
+            skip_offset=False,
+            block_meta_path=block_meta_path,
         )

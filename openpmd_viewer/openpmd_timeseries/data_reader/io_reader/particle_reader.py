@@ -110,7 +110,7 @@ def read_species_data(series, iteration, species_name, component_name,
         m = get_data_new(series, mass_component, read_chunk_range=read_chunk_range)
         end = time.time()
         print(f"get mass read for {component_name}. Time elapsed: ", end - start)
-
+        print("mass: " + str(m))
         start = time.time()
         # Normalize only if the particle mass is non-zero
         if np.all( m != 0 ):

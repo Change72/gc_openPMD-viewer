@@ -36,11 +36,13 @@ def extract_data_from_log(log_file):
     data_apply_select_time_elapsed = []
     apply_particle_level_select_array_time_elapsed = []
     total_time_elapsed = None
+    fastbit_index_time_elapsed = []
+    fastbit_index_targeted_time_elapsed = []
     data_size = None
 
     with open(log_file, 'r') as file:
         lines = file.readlines()
-        for line in lines:
+        for i, line in enumerate(lines):
             if 'target_percentage' in line:
                 target_percentage = float(line.split()[1])
 
@@ -167,6 +169,23 @@ def extract_data_from_log(log_file):
                 regex_result = re.compile(r'Time elapsed: (.*)').findall(line)
                 if regex_result:
                     apply_particle_level_select_array_time_elapsed.append(float(regex_result[0]))
+            
+            # Fastbit Index cost. Time elapsed:  0.0004150867462158203
+            elif 'Fastbit Index cost' in line:
+                regex_result = re.compile(r'Time elapsed: (.*)').findall(line)
+                if regex_result:
+                    fastbit_index_time_elapsed.append(float(regex_result[0]))
+
+            # fastbit_selection_evaluate(...) returned 1 hits
+            # Fastbit Index cost. Time elapsed:  0.0002880096435546875
+            elif 'fastbit_selection_evaluate' in line:
+                regex_result = re.compile(r'fastbit_selection_evaluate\(\.\.\.\) returned (\d+) hits').findall(line)
+                if regex_result and regex_result[0] != '0':
+                    # go to next line
+                    next_line = lines[i + 1]
+                    regex_result = re.compile(r'Time elapsed: (.*)').findall(next_line)
+                    if regex_result:
+                        fastbit_index_targeted_time_elapsed.append(float(regex_result[0]))
 
             elif 'Total Time' in line:
                 # Total Time: 149.23700332641602, data size: 4163
@@ -199,6 +218,8 @@ def extract_data_from_log(log_file):
         'data_apply_select_time_elapsed': sum(data_apply_select_time_elapsed),
         'apply_particle_level_select_array_time_elapsed': sum(apply_particle_level_select_array_time_elapsed),
         'total_time_elapsed': total_time_elapsed,
+        'fastbit_index_time_elapsed': sum(fastbit_index_time_elapsed),
+        'fastbit_index_targeted_time_elapsed': sum(fastbit_index_targeted_time_elapsed),
 
         'query_result_size': query_result_size,
         'chunk_range_size': chunk_range_size,
@@ -218,6 +239,7 @@ def process_folder(folder_path):
     data = []
     for file_name in os.listdir(folder_path):
         if file_name.endswith('.log'):
+            print(f'Processing {file_name}')
             log_file = os.path.join(folder_path, file_name)
             data.append(extract_data_from_log(log_file))
     
