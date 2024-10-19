@@ -40,7 +40,17 @@ class ParticleTracker( object ):
     """
 
     def __init__(self, ts, species=None, t=None,
-                iteration=None, select=None, preserve_particle_index=False):
+                iteration=None, select=None, preserve_particle_index=False,
+                use_geos_index=False,
+                geos_index_use_secondary = False,
+                geos_index_direct_block_read = True,
+                geos_index_read_groups = False,
+                skip_offset=False,
+                limit_block_num=None,
+                limit_memory_usage=None,
+                block_meta_path=None,
+                memory_usage_factor=1.0,
+                ):
         """
         Initialize an instance of `ParticleTracker`: select particles at
         a given iteration, so that they can be retrieved at a later iteration.
@@ -93,11 +103,23 @@ class ParticleTracker( object ):
         # Extract or load the particle id and sort them
         if (type(select) is dict) or (select is None):
             self.selected_pid, = ts.get_particle(['id'], species=species,
-                                    select=select, t=t, iteration=iteration)
+                                    select=select, t=t, iteration=iteration,
+                                    geos_index_use_secondary = geos_index_use_secondary,
+                                    geos_index_direct_block_read = geos_index_direct_block_read,
+                                    geos_index_read_groups = geos_index_read_groups,
+                                    skip_offset=skip_offset,
+                                    limit_block_num=limit_block_num,
+                                    limit_memory_usage=limit_memory_usage,
+                                    block_meta_path=block_meta_path,
+                                    memory_usage_factor=memory_usage_factor
+                                    )
         elif (type(select) is np.ndarray):
             self.selected_pid = select
-
-        self.selected_pid.sort()
+        
+        self.use_geos_index = use_geos_index
+        self.ts = ts
+        if not use_geos_index:
+            self.selected_pid.sort()
 
         # Register a few metadata
         self.N_selected = len( self.selected_pid )
@@ -137,16 +159,67 @@ class ParticleTracker( object ):
         initialization)
         """
         # Extract the particle id, and get the extraction indices
-        pid = data_reader.read_species_data(iteration, species, 'id', extensions)
-        selected_indices = self.get_extraction_indices( pid )
+        if not self.use_geos_index:
+            pid = data_reader.read_species_data(iteration, species, 'id', extensions)
+            selected_indices = self.get_extraction_indices( pid )
 
-        # For each particle quantity, select only the tracked particles
-        for i in range(len(data_list)):
-            if len(data_list[i]) > 1:  # Do not apply selection on scalars
-                data_list[i] = self.extract_quantity(
-                    data_list[i], selected_indices )
+            # For each particle quantity, select only the tracked particles
+            for i in range(len(data_list)):
+                if len(data_list[i]) > 1:  # Do not apply selection on scalars
+                    data_list[i] = self.extract_quantity(
+                        data_list[i], selected_indices )
 
-        return( data_list )
+            return( data_list )
+        else:
+            key = self.ts.key_generation_function(iteration, species, "position")
+            selected_block = self.ts.query_geos_index.queryRTreeTracingInteracted(key, self.selected_pid)
+            print("len(selected_block):", len(selected_block))
+
+            if len(selected_block) == 0:
+                return [np.array([]) for _ in data_list]
+            
+            self.ts.read_strategy = list()
+            self.ts.read_chunk_range = list()
+            self.ts.sorted_blocks = sorted(selected_block.items(), key=lambda x: int(x[0]))
+
+            self.ts.find_optimal_strategy(0, len(self.ts.sorted_blocks) - 1, 0)
+
+            total_read_size = 0
+            for block_start_index, block_end_index in self.ts.read_strategy:
+                self.ts.read_chunk_range.append((self.ts.sorted_blocks[block_start_index][1].start, self.ts.sorted_blocks[block_end_index][1].end, None))
+                total_read_size += self.ts.sorted_blocks[block_end_index][1].end - self.ts.sorted_blocks[block_start_index][1].start
+            
+
+            self.ts.read_chunk_range = sorted(self.ts.read_chunk_range, key=lambda x: x[0])
+            print("read_chunk_range", self.ts.read_chunk_range)
+            select_array = np.zeros(total_read_size, dtype='bool')
+            
+            id_list = self.ts.data_reader.read_species_data(iteration, species, 'id', self.ts.extensions, self.ts.read_chunk_range)
+            print("len(id_list):", len(id_list))
+
+            prev_offset = 0
+            for block_start_index, block_end_index in self.ts.read_strategy:
+                current_global_offset = self.ts.sorted_blocks[block_start_index][1].start
+                for range_index in range(block_start_index, block_end_index + 1):
+                    current_block = self.ts.sorted_blocks[range_index][1]
+                    current_id_set = set(current_block.id_data)
+                    
+                    for i in range(current_block.end - current_block.start):
+                        id_offset = current_block.start - current_global_offset + prev_offset + i
+                        if current_id_set.__contains__(id_list[id_offset]):
+                            select_array[id_offset] = True
+
+                prev_offset += self.ts.sorted_blocks[block_end_index][1].end - self.ts.sorted_blocks[block_start_index][1].start
+            # print("sum(select_array):", np.sum(select_array))
+            var_list = data_list
+            result_list = list()
+            for quantity in var_list:
+                result = self.ts.data_reader.read_species_data(iteration, species, quantity, self.ts.extensions, self.ts.read_chunk_range)
+                result_list.append(result[select_array])
+            
+            return result_list
+
+            
 
     def extract_quantity( self, q, selected_indices ):
         """

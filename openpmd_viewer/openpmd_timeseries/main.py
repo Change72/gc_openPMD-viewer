@@ -745,9 +745,11 @@ class OpenPMDTimeSeries(InteractiveViewer):
                 print("selected data length: ", len(data_list[0]))
 
                               
-            else:
+            elif isinstance( select, ParticleTracker ):
+                data_list = select.extract_tracked_particles( iteration,
+                    self.data_reader, var_list, species, self.extensions )
                 # todo particle tracing
-                pass
+                # pass
         # print()
         # Plotting
         if plot and len(var_list) in [1, 2]:

@@ -152,6 +152,11 @@ def read_species_support_data(series, iteration, species_name, component_name,
     # Extract the right dataset
     species = it.particles[species_name]
     record = species[ompd_record_name]
+    
+    if ompd_record_name == 'id':
+        output_type = np.uint64
+    else:
+        output_type = np.float64
 
     # For ED-PIC: if the data is weighted for a full macroparticle,
     # divide by the weight with the proper power
