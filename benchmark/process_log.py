@@ -3,6 +3,40 @@ import re
 import argparse
 import pandas as pd
 
+
+def extract_memory_usage(file_path):
+    memory_data = []
+
+    # Open the file and read it line by line
+    with open(file_path, 'r') as file:
+        for line in file:
+            # Use regex to extract memory usage from the line
+            match = re.search(r"Mem:\s+\d+Gi\s+([\d\.]+Gi)", line)
+            if match:
+                memory_used = match.group(1)
+                # Convert memory used (in Gi) to float
+                memory_used_gb = float(memory_used.replace('Gi', ''))
+                memory_data.append(memory_used_gb)
+    # print(f"Memory data: {memory_data}")
+    return memory_data
+
+
+def calculate_total_memory_usage(memory_data):
+    total_used = 0
+    initial = memory_data[0]
+
+    for current_usage in memory_data[1:]:
+        # print(f"Current usage: {current_usage:.2f} GB")
+        if current_usage > initial:
+            local_max = current_usage
+            total_used += local_max - initial
+            initial = local_max  # Update the initial to local max
+        elif current_usage < initial:
+            initial = current_usage  # Reset initial to lower memory usage
+
+    return total_used
+
+
 def extract_data_from_log(log_file):
     """
     Extracts relevant information from a log file.
@@ -39,6 +73,9 @@ def extract_data_from_log(log_file):
     fastbit_index_time_elapsed = []
     fastbit_index_targeted_time_elapsed = []
     data_size = None
+
+    memory_data = extract_memory_usage(log_file[:-3] + 'memlog')
+    total_memory_used = calculate_total_memory_usage(memory_data)
 
     with open(log_file, 'r') as file:
         lines = file.readlines()
@@ -228,7 +265,9 @@ def extract_data_from_log(log_file):
         'species': species,
         'expand_set': expand_set,
         'envelope': envelope,
-        'data_size': data_size
+        'data_size': data_size,
+
+        'total_memory_used': total_memory_used
     }
 
 
